@@ -5,7 +5,7 @@ import ZoomPlugin from 'chartjs-plugin-zoom';
 import { useFinance } from '../context/FinanceContext';
 import { useChartData } from '../hooks/useChartData';
 import { ChartPeriod } from '../types';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Plus, Minus, Search, X } from 'lucide-react';
 
 // Register the Zoom plugin globally for this component
 Chart.register(ZoomPlugin);
@@ -18,6 +18,7 @@ interface ChartSectionProps {
 export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate }) => {
   const { transactions } = useFinance();
   const [hoverData, setHoverData] = useState<{ income: number; expense: number; balance: number } | null>(null);
+  const [showControls, setShowControls] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -36,6 +37,18 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
   // --- Handlers ---
   const handleResetZoom = () => {
     if (chartInstance.current) chartInstance.current.resetZoom();
+  };
+
+  const handleZoomIn = () => {
+    if (chartInstance.current) {
+      (chartInstance.current as any).zoom(1.1);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (chartInstance.current) {
+      (chartInstance.current as any).zoom(0.9);
+    }
   };
 
   // --- Chart Creation Helper ---
@@ -168,14 +181,43 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
       {/* Background Gradient Blob */}
       <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-neutral-50/50 dark:from-neutral-800/20 to-transparent pointer-events-none" />
 
-      {/* Reset Zoom Button */}
-      <button 
-        onClick={handleResetZoom}
-        className="absolute top-6 right-6 p-2 bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border border-neutral-100 dark:border-neutral-700 rounded-full text-neutral-400 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-white shadow-sm z-30 transition-all hover:scale-105 active:scale-95"
-        title="Reset Zoom"
-      >
-        <RotateCcw size={16} />
-      </button>
+      {/* Expandable Chart Controls (Bottom Right) */}
+      <div className="absolute bottom-6 right-6 z-30 flex items-center justify-end">
+         <div className={`flex items-center gap-1 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-100 dark:border-neutral-800 rounded-full shadow-xl mr-3 overflow-hidden transition-all duration-300 origin-right ${showControls ? 'w-auto opacity-100 p-1' : 'w-0 opacity-0 p-0 border-0 scale-90'}`}>
+            <button 
+              onClick={handleZoomOut}
+              className="p-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              title="Zoom Out"
+            >
+              <Minus size={18} />
+            </button>
+            <button 
+              onClick={handleResetZoom}
+              className="p-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              title="Reset View"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button 
+              onClick={handleZoomIn}
+              className="p-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              title="Zoom In"
+            >
+              <Plus size={18} />
+            </button>
+         </div>
+
+         <button 
+           onClick={() => setShowControls(!showControls)}
+           className={`w-12 h-12 flex items-center justify-center rounded-full shadow-lg border transition-all duration-300 ${
+             showControls 
+               ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white rotate-90' 
+               : 'bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md text-neutral-500 dark:text-neutral-400 border-neutral-100 dark:border-neutral-800 hover:scale-105'
+           }`}
+         >
+           {showControls ? <X size={20} /> : <Search size={20} />}
+         </button>
+      </div>
 
       {/* Header Metrics */}
       <div className="relative z-10 flex flex-col items-center mb-2">
