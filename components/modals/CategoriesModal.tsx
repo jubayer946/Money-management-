@@ -11,24 +11,28 @@ interface CategoriesModalProps {
 export const CategoriesModal: React.FC<CategoriesModalProps> = ({ isOpen, onClose }) => {
   const { categories, addCategory, updateCategory, deleteCategory } = useFinance();
   const [newCategory, setNewCategory] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
   const handleAdd = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newCategory.trim()) return;
-    addCategory(newCategory.trim());
+    // Default to 'expense' and a neutral color if added via this simple modal
+    addCategory(newCategory.trim(), 'expense', '#64748b');
     setNewCategory('');
   };
 
-  const startEdit = (id: number, name: string) => {
+  const startEdit = (id: string, name: string) => {
     setEditingId(id);
     setEditName(name);
   };
 
   const saveEdit = () => {
     if (editingId !== null && editName.trim()) {
-      updateCategory({ id: editingId, name: editName.trim() });
+      const existingCategory = categories.find(c => c.id === editingId);
+      if (existingCategory) {
+        updateCategory({ ...existingCategory, name: editName.trim() });
+      }
       setEditingId(null);
       setEditName('');
     }
