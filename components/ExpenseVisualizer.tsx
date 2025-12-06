@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 import ZoomPlugin from 'chartjs-plugin-zoom';
@@ -14,9 +15,10 @@ const DEFAULT_COLORS = [
 interface FinanceVisualizerProps {
   type: TransactionType;
   period: ChartPeriod;
+  currentDate: Date;
 }
 
-export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, period }) => {
+export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, period, currentDate }) => {
   const { transactions, categories } = useFinance();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -25,31 +27,42 @@ export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, peri
 
   // --- Data Aggregation ---
   const chartData = useMemo(() => {
-    const now = new Date();
+    // Determine start/end range based on currentDate
+    const startDate = new Date(currentDate);
+    const endDate = new Date(currentDate);
+
+    if (period === 'day') {
+        startDate.setHours(0,0,0,0);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'week') {
+        const day = startDate.getDay();
+        const diff = startDate.getDate() - day;
+        startDate.setDate(diff);
+        startDate.setHours(0,0,0,0);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'month') {
+        startDate.setDate(1);
+        startDate.setHours(0,0,0,0);
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setDate(0);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'year') {
+        startDate.setMonth(0, 1);
+        startDate.setHours(0,0,0,0);
+        endDate.setMonth(11, 31);
+        endDate.setHours(23,59,59,999);
+    }
     
     // Filter by type and period
     const filtered = transactions.filter(t => {
       if (t.type !== type) return false;
       
       const tDate = new Date(t.date);
-      // Adjust date logic
-      if (period === 'day') {
-          return tDate.toDateString() === now.toDateString();
-      }
-      if (period === 'week') {
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(now.getDate() - 7);
-        return tDate >= oneWeekAgo;
-      }
-      if (period === 'month') {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(now.getDate() - 30);
-        return tDate >= thirtyDaysAgo;
-      }
-      if (period === 'year') {
-        return tDate.getFullYear() === now.getFullYear();
-      }
-      return true;
+      const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
+      const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
+
+      return adjustedDate >= startDate && adjustedDate <= endDate;
     });
 
     // Group by category
@@ -69,7 +82,7 @@ export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, peri
     });
 
     return { labels, data, backgroundColors };
-  }, [transactions, type, period, categories]);
+  }, [transactions, type, period, categories, currentDate]);
 
   const total = useMemo(() => chartData.data.reduce((a, b) => a + b, 0), [chartData]);
 
@@ -153,7 +166,15 @@ export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, peri
       </div>
 
       <div className="relative flex-1 w-full min-h-[260px]">
-        <canvas ref={canvasRef} style={{ filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.05))' }} />
+        {chartData.data.length === 0 ? (
+             <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-300 dark:text-neutral-600">
+                <div className="w-32 h-32 rounded-full border-4 border-neutral-100 dark:border-neutral-800 flex items-center justify-center mb-2">
+                    <span className="text-xs font-medium">No Data</span>
+                </div>
+             </div>
+        ) : (
+             <canvas ref={canvasRef} style={{ filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.05))' }} />
+        )}
         
         {/* Interactive Center Text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-2 transition-all duration-200">

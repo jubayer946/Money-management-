@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 import ZoomPlugin from 'chartjs-plugin-zoom';
@@ -11,16 +12,17 @@ Chart.register(ZoomPlugin);
 
 interface ChartSectionProps {
   period: ChartPeriod;
+  currentDate: Date;
 }
 
-export const ChartSection: React.FC<ChartSectionProps> = ({ period }) => {
+export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate }) => {
   const { transactions } = useFinance();
   const [hoverData, setHoverData] = useState<{ income: number; expense: number; balance: number } | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
   
-  const data = useChartData(transactions, period);
+  const data = useChartData(transactions, period, currentDate);
 
   // --- Metrics ---
   const totalIncome = useMemo(() => data.reduce((acc, curr) => acc + curr.income, 0), [data]);

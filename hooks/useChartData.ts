@@ -1,47 +1,62 @@
 
-
 import { useMemo } from 'react';
 import { Transaction, ChartPeriod, ChartDataPoint } from '../types';
 
-export const useChartData = (transactions: Transaction[], period: ChartPeriod) => {
+export const useChartData = (transactions: Transaction[], period: ChartPeriod, currentDate: Date) => {
   return useMemo(() => {
-    const now = new Date();
     const data: ChartDataPoint[] = [];
     
     // Filter out transfers for Income/Expense charts to avoid skewing data
+    // Note: For pure Net Worth, transfers within own accounts cancel out, but we filter here to keep the income/expense lines clean.
     const relevantTransactions = transactions.filter(t => t.type !== 'transfer');
     
-    // Determine the cutoff date for the chart period to calculate initial balance
-    let cutoffDate = new Date(now);
-    
+    // Determine the start (cutoff) and end date for the chart period
+    const startDate = new Date(currentDate);
+    const endDate = new Date(currentDate);
+
     if (period === 'day') {
-      cutoffDate.setHours(0,0,0,0);
+      startDate.setHours(0,0,0,0);
+      endDate.setHours(23,59,59,999);
     } else if (period === 'week') {
-      cutoffDate.setDate(cutoffDate.getDate() - 6);
-      cutoffDate.setHours(0,0,0,0);
+      // Set to Sunday of this week
+      const day = startDate.getDay();
+      const diff = startDate.getDate() - day;
+      startDate.setDate(diff);
+      startDate.setHours(0,0,0,0);
+      
+      // End date is Saturday
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23,59,59,999);
     } else if (period === 'month') {
-      cutoffDate.setDate(cutoffDate.getDate() - 29);
-      cutoffDate.setHours(0,0,0,0);
+      startDate.setDate(1);
+      startDate.setHours(0,0,0,0);
+      
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(0); // Last day of previous month (which is the current month in calculation)
+      endDate.setHours(23,59,59,999);
     } else if (period === 'year') {
-      cutoffDate.setMonth(cutoffDate.getMonth() - 11);
-      cutoffDate.setDate(1); // Start of that month
-      cutoffDate.setHours(0,0,0,0);
+      startDate.setMonth(0, 1);
+      startDate.setHours(0,0,0,0);
+      
+      endDate.setMonth(11, 31);
+      endDate.setHours(23,59,59,999);
     }
 
-    // Calculate initial balance (sum of all transactions BEFORE the chart period)
-    // Note: For Balance history, we DO want to include transfers if we were tracking specific wallet,
-    // but this chart usually shows Net Worth, so transfers cancel out.
+    // Calculate initial balance (sum of all transactions BEFORE the start date)
     let initialBalance = 0;
     
-    // For net worth calculation, we use ALL transactions (excluding transfers as they don't change net worth)
     transactions.forEach(t => {
       if (t.type === 'transfer') return;
 
       const tDate = new Date(t.date);
+      // We compare purely based on the date string to avoid timezone complexity for "start of day" logic
+      // essentially: if tDate < startDate
+      const tTime = tDate.getTime();
+      // Adjust strictly for comparison
       const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
       const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
-      
-      if (adjustedDate < cutoffDate) {
+
+      if (adjustedDate < startDate) {
         if (t.type === 'income') {
           initialBalance += t.amount;
         } else if (t.type === 'expense') {
@@ -51,7 +66,7 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod) =
     });
 
     if (period === 'day') {
-      // Last 24 hours (simplified to 0-23 hours of current day)
+      // 0-23 hours
       for (let i = 0; i < 24; i++) {
         data.push({ label: `${i}:00`, income: 0, expense: 0, balance: 0 });
       }
@@ -60,8 +75,8 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod) =
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
         
-        if (adjustedDate.toDateString() === now.toDateString()) {
-           // We'll just put it at 12:00 for visualization since we lack time precision
+        if (adjustedDate >= startDate && adjustedDate <= endDate) {
+           // Simply distribute to middle of day as we don't have time on transactions
            if (t.type === 'income') data[12].income += t.amount;
            else if (t.type === 'expense') data[12].expense += t.amount;
         }
@@ -69,9 +84,9 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod) =
       
     } else if (period === 'week') {
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
         data.push({ 
           label: dayNames[d.getDay()], 
           income: 0, 
@@ -80,68 +95,77 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod) =
           date: d.toDateString() 
         });
       }
+      
       relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
-        const dateStr = adjustedDate.toDateString();
         
-        const point = data.find(p => p.date === dateStr);
-        if (point) {
-          if (t.type === 'income') point.income += t.amount;
-          else if (t.type === 'expense') point.expense += t.amount;
+        if (adjustedDate >= startDate && adjustedDate <= endDate) {
+            const dateStr = adjustedDate.toDateString();
+            const point = data.find(p => p.date === dateStr);
+            if (point) {
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
+            }
         }
       });
 
     } else if (period === 'month') {
-      // Last 30 days
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
+      // Days in month
+      const daysInMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+      
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startDate);
+        d.setDate(i);
         data.push({
-          label: `${d.getDate()}`,
+          label: `${i}`,
           income: 0,
           expense: 0,
           balance: 0,
           date: d.toDateString()
         });
       }
+
       relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
-        const dateStr = adjustedDate.toDateString();
         
-        const point = data.find(p => p.date === dateStr);
-        if (point) {
-          if (t.type === 'income') point.income += t.amount;
-          else if (t.type === 'expense') point.expense += t.amount;
+        if (adjustedDate >= startDate && adjustedDate <= endDate) {
+            const dateStr = adjustedDate.toDateString();
+            const point = data.find(p => p.date === dateStr);
+            if (point) {
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
+            }
         }
       });
 
     } else if (period === 'year') {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now);
-        d.setMonth(d.getMonth() - i);
+      for (let i = 0; i < 12; i++) {
         data.push({
-          label: monthNames[d.getMonth()],
+          label: monthNames[i],
           income: 0,
           expense: 0,
           balance: 0,
-          month: d.getMonth(),
-          year: d.getFullYear()
+          month: i,
+          year: startDate.getFullYear()
         });
       }
+      
       relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
 
-        const point = data.find(p => p.month === adjustedDate.getMonth() && p.year === adjustedDate.getFullYear());
-        if (point) {
-          if (t.type === 'income') point.income += t.amount;
-          else if (t.type === 'expense') point.expense += t.amount;
+        if (adjustedDate >= startDate && adjustedDate <= endDate) {
+            const point = data.find(p => p.month === adjustedDate.getMonth() && p.year === adjustedDate.getFullYear());
+            if (point) {
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
+            }
         }
       });
     }
@@ -154,5 +178,5 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod) =
     });
 
     return data;
-  }, [transactions, period]);
+  }, [transactions, period, currentDate]);
 };

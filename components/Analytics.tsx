@@ -2,14 +2,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FinanceVisualizer } from './ExpenseVisualizer';
 import { useFinance } from '../context/FinanceContext';
-import { PieChart as PieIcon, ChevronDown, Plus, AlertCircle } from 'lucide-react';
+import { PieChart as PieIcon, ChevronDown, Plus, AlertCircle, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { ChartPeriod, TransactionType, Budget } from '../types';
 import { ChartSection } from './ChartSection';
 import { BudgetModal } from './modals/BudgetModal';
 
 export const Analytics: React.FC = () => {
   const { transactions, categories, budgets } = useFinance();
-  const [period, setPeriod] = useState<ChartPeriod>('week');
+  const [period, setPeriod] = useState<ChartPeriod>('month');
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [slideIndex, setSlideIndex] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
   
@@ -17,12 +18,72 @@ export const Analytics: React.FC = () => {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
 
+  // --- Date Navigation ---
+  const handlePrev = () => {
+    const newDate = new Date(currentDate);
+    if (period === 'day') newDate.setDate(newDate.getDate() - 1);
+    if (period === 'week') newDate.setDate(newDate.getDate() - 7);
+    if (period === 'month') newDate.setMonth(newDate.getMonth() - 1);
+    if (period === 'year') newDate.setFullYear(newDate.getFullYear() - 1);
+    setCurrentDate(newDate);
+  };
+
+  const handleNext = () => {
+    const newDate = new Date(currentDate);
+    if (period === 'day') newDate.setDate(newDate.getDate() + 1);
+    if (period === 'week') newDate.setDate(newDate.getDate() + 7);
+    if (period === 'month') newDate.setMonth(newDate.getMonth() + 1);
+    if (period === 'year') newDate.setFullYear(newDate.getFullYear() + 1);
+    setCurrentDate(newDate);
+  };
+
+  const isCurrentPeriod = () => {
+      const now = new Date();
+      if (period === 'month') return now.getMonth() === currentDate.getMonth() && now.getFullYear() === currentDate.getFullYear();
+      if (period === 'year') return now.getFullYear() === currentDate.getFullYear();
+      if (period === 'day') return now.toDateString() === currentDate.toDateString();
+      if (period === 'week') {
+          // Check if same week
+          const getWeek = (d: Date) => {
+             const date = new Date(d.getTime());
+             date.setHours(0, 0, 0, 0);
+             date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+             const week1 = new Date(date.getFullYear(), 0, 4);
+             return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+          };
+          return getWeek(now) === getWeek(currentDate) && now.getFullYear() === currentDate.getFullYear();
+      }
+      return false;
+  };
+
+  const getDateLabel = () => {
+    if (period === 'month') {
+        return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    if (period === 'year') {
+        return currentDate.getFullYear().toString();
+    }
+    if (period === 'day') {
+        return currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    if (period === 'week') {
+        const start = new Date(currentDate);
+        const day = start.getDay();
+        start.setDate(start.getDate() - day); // Sunday
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6); // Saturday
+        return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
+    return '';
+  };
+
   // --- Cycle Period Helper ---
   const cyclePeriod = () => {
     const periods: ChartPeriod[] = ['week', 'month', 'year'];
     const currentIndex = periods.indexOf(period);
     const nextIndex = (currentIndex + 1) % periods.length;
     setPeriod(periods[nextIndex]);
+    setCurrentDate(new Date()); // Reset to today when changing granularity
   };
 
   // --- Slider Scroll Handling ---
@@ -76,31 +137,43 @@ export const Analytics: React.FC = () => {
   // --- Category List Data Logic ---
   const activeType: TransactionType | null = slideIndex === 1 ? 'income' : slideIndex === 2 ? 'expense' : null;
 
-  // Calculate category totals based on the selected view type and period
+  // Calculate category totals based on the selected view type and period + currentDate
   const categoryTotals: Record<string, number> = activeType ? transactions
     .filter(t => {
         if (t.type !== activeType) return false;
         
-        const now = new Date();
         const tDate = new Date(t.date);
+        const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
+
+        // Date Range Logic matching hooks/useChartData
+        const startDate = new Date(currentDate);
+        const endDate = new Date(currentDate);
 
         if (period === 'day') {
-            return tDate.toDateString() === now.toDateString();
+            startDate.setHours(0,0,0,0);
+            endDate.setHours(23,59,59,999);
+        } else if (period === 'week') {
+            const day = startDate.getDay();
+            const diff = startDate.getDate() - day;
+            startDate.setDate(diff);
+            startDate.setHours(0,0,0,0);
+            endDate.setDate(startDate.getDate() + 6);
+            endDate.setHours(23,59,59,999);
+        } else if (period === 'month') {
+            startDate.setDate(1);
+            startDate.setHours(0,0,0,0);
+            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setDate(0);
+            endDate.setHours(23,59,59,999);
+        } else if (period === 'year') {
+            startDate.setMonth(0, 1);
+            startDate.setHours(0,0,0,0);
+            endDate.setMonth(11, 31);
+            endDate.setHours(23,59,59,999);
         }
-        if (period === 'week') {
-            const oneWeekAgo = new Date();
-            oneWeekAgo.setDate(now.getDate() - 7);
-            return tDate >= oneWeekAgo;
-        }
-        if (period === 'month') {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(now.getDate() - 30);
-            return tDate >= thirtyDaysAgo;
-        }
-        if (period === 'year') {
-            return tDate.getFullYear() === now.getFullYear();
-        }
-        return true;
+
+        return adjustedDate >= startDate && adjustedDate <= endDate;
     })
     .reduce<Record<string, number>>((acc, t) => {
       const cat = t.category || 'Uncategorized';
@@ -128,6 +201,36 @@ export const Analytics: React.FC = () => {
         </button>
       </div>
 
+      {/* Date Navigation Bar */}
+      <div className="flex items-center justify-between bg-white dark:bg-neutral-900 p-2 rounded-2xl border border-neutral-100 dark:border-neutral-800 shadow-sm mb-6">
+          <button 
+            onClick={handlePrev}
+            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400 transition-colors"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-neutral-400" />
+            <span className="text-sm font-semibold text-neutral-900 dark:text-white">{getDateLabel()}</span>
+            {!isCurrentPeriod() && (
+                <button 
+                    onClick={() => setCurrentDate(new Date())}
+                    className="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-md ml-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                >
+                    JUMP TO TODAY
+                </button>
+            )}
+          </div>
+
+          <button 
+            onClick={handleNext}
+            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400 transition-colors"
+          >
+            <ChevronRight size={20} />
+          </button>
+      </div>
+
       {/* Slider Container */}
       <div className="relative w-full mb-8">
         <div 
@@ -137,17 +240,17 @@ export const Analytics: React.FC = () => {
         >
             {/* Slide 1: Overview */}
             <div className="min-w-full snap-center h-[400px]">
-                <ChartSection period={period} />
+                <ChartSection period={period} currentDate={currentDate} />
             </div>
 
             {/* Slide 2: Income */}
             <div className="min-w-full snap-center h-[400px]">
-                <FinanceVisualizer type="income" period={period} />
+                <FinanceVisualizer type="income" period={period} currentDate={currentDate} />
             </div>
 
             {/* Slide 3: Expense */}
             <div className="min-w-full snap-center h-[400px]">
-                <FinanceVisualizer type="expense" period={period} />
+                <FinanceVisualizer type="expense" period={period} currentDate={currentDate} />
             </div>
         </div>
 
@@ -171,14 +274,14 @@ export const Analytics: React.FC = () => {
       {activeType && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mb-8">
             <h3 className="text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-4 px-1 flex items-center justify-between">
-              <span>{activeType} Breakdown ({period})</span>
+              <span>{activeType} Breakdown</span>
               <span className="text-neutral-900 dark:text-white font-bold">${totalAmount.toLocaleString()}</span>
             </h3>
             
             <div className="space-y-3">
               {sortedCategories.length === 0 ? (
                 <div className="p-8 text-center bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-400 dark:text-neutral-500 text-sm">
-                  No {activeType} data for this {period}
+                  No {activeType} data for this period
                 </div>
               ) : (
                 sortedCategories.map(([catName, amount]) => {
@@ -224,7 +327,7 @@ export const Analytics: React.FC = () => {
       {slideIndex === 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
             <div className="flex justify-between items-center mb-4 px-1">
-                <h2 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Monthly Budgets</h2>
+                <h2 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Monthly Budgets (Current)</h2>
                 <button 
                   onClick={handleAddBudget}
                   className="text-xs font-bold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:opacity-90 transition-opacity shadow-sm"
