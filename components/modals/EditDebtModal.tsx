@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
@@ -12,16 +13,18 @@ interface EditDebtModalProps {
 }
 
 export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onClose, onDelete }) => {
-  const { updateDebt, addTransaction, addDebtPayment, debtPayments } = useFinance();
+  const { updateDebt, addTransaction, addDebtPayment, debtPayments, categories } = useFinance();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [initialAmount, setInitialAmount] = useState('');
+  const [date, setDate] = useState('');
   
   // Optional Details
   const [interestRate, setInterestRate] = useState('');
   const [minimumPayment, setMinimumPayment] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState('');
   
   // Payment specific state
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -30,16 +33,20 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
   // Tabs
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
 
+  const expenseCategories = categories ? categories.filter(c => c.type === 'expense') : [];
+
   useEffect(() => {
     if (debt) {
       setName(debt.name);
       setAmount(debt.amount.toString());
       setInitialAmount(debt.initialAmount?.toString() || debt.amount.toString());
+      setDate(debt.date || '');
       
       setInterestRate(debt.interestRate ? debt.interestRate.toString() : '');
       setMinimumPayment(debt.minimumPayment ? debt.minimumPayment.toString() : '');
       setDueDate(debt.dueDate || '');
       setNotes(debt.notes || '');
+      setCategory(debt.category || '');
 
       setRecordTransaction(true);
       setPaymentAmount('');
@@ -90,6 +97,8 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
     if (!debt || !name || !amount) return;
 
     const currentAmount = parseFloat(amount);
+    if (isNaN(currentAmount)) return;
+
     let initAmt = parseFloat(initialAmount);
     
     if (isNaN(initAmt) || initAmt < currentAmount) {
@@ -115,16 +124,24 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
       }
     }
 
-    updateDebt({
+    const intRate = parseFloat(interestRate);
+    const minPay = parseFloat(minimumPayment);
+
+    // Dynamic object construction to avoid undefined values, using null to clear fields
+    const debtData: any = {
       ...debt,
       name,
       amount: currentAmount,
       initialAmount: initAmt,
-      interestRate: interestRate ? parseFloat(interestRate) : undefined,
-      minimumPayment: minimumPayment ? parseFloat(minimumPayment) : undefined,
-      dueDate: dueDate || undefined,
-      notes: notes || undefined
-    });
+      interestRate: !isNaN(intRate) ? intRate : null,
+      minimumPayment: !isNaN(minPay) ? minPay : null,
+      dueDate: dueDate || null,
+      notes: notes || null,
+      category: category || null,
+      date: date || null
+    };
+
+    updateDebt(debtData);
     onClose();
   };
 
@@ -238,6 +255,16 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
               </div>
           </div>
 
+          <div>
+             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Date</label>
+             <input
+                 type="date"
+                 value={date}
+                 onChange={(e) => setDate(e.target.value)}
+                 className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+             />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Interest (%)</label>
@@ -264,6 +291,20 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
                     />
                 </div>
             </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Category</label>
+             <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+             >
+                <option value="">Select...</option>
+                {expenseCategories.map(c => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+             </select>
           </div>
 
           <div>

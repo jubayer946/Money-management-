@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { ArrowUp, ArrowDown, PiggyBank, Settings, ChevronRight } from 'lucide-react';
@@ -8,14 +7,32 @@ import { SavingsModal } from './modals/SavingsModal';
 import { SettingsModal } from './modals/SettingsModal';
 
 export const Dashboard: React.FC = () => {
-  const { getBalance, getIncome, getExpenses, transactions } = useFinance();
+  const { getBalance, transactions } = useFinance();
   const navigate = useNavigate();
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const balance = getBalance(); 
-  const income = getIncome();
-  const expenses = getExpenses();
+  
+  // Calculate Monthly Income/Expense
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const currentMonthTransactions = transactions.filter(t => {
+    // Parse YYYY-MM-DD safely
+    const [year, month] = t.date.split('-').map(Number);
+    // Month in date string is 1-12, currentMonth is 0-11
+    return year === currentYear && (month - 1) === currentMonth;
+  });
+
+  const income = currentMonthTransactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const expenses = currentMonthTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
 
   const recentTransactions = transactions.slice(0, 5);
 
@@ -42,11 +59,11 @@ export const Dashboard: React.FC = () => {
         <div className="flex justify-center gap-8">
           <div className="text-center">
             <div className="text-lg font-medium text-green-600 dark:text-green-500 mb-0.5">${income.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-            <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Income</div>
+            <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Monthly Income</div>
           </div>
           <div className="text-center">
             <div className="text-lg font-medium text-red-500 dark:text-red-400 mb-0.5">${expenses.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-            <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Expenses</div>
+            <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Monthly Expenses</div>
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
@@ -9,10 +10,11 @@ interface AddDebtModalProps {
 }
 
 export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) => {
-  const { addDebt } = useFinance();
+  const { addDebt, categories } = useFinance();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [initialAmount, setInitialAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Optional Details
   const [showDetails, setShowDetails] = useState(false);
@@ -20,33 +22,50 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
   const [minimumPayment, setMinimumPayment] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState('');
+
+  const expenseCategories = categories ? categories.filter(c => c.type === 'expense') : [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !amount) return;
 
     const currentAmt = parseFloat(amount);
-    // If initial amount is not provided or is less than current amount, default to current amount
-    const initAmt = initialAmount ? parseFloat(initialAmount) : currentAmt;
-    const finalInitAmt = initAmt < currentAmt ? currentAmt : initAmt;
+    if (isNaN(currentAmt)) return;
 
-    addDebt({
-      name,
-      amount: currentAmt,
-      initialAmount: finalInitAmt,
-      interestRate: interestRate ? parseFloat(interestRate) : undefined,
-      minimumPayment: minimumPayment ? parseFloat(minimumPayment) : undefined,
-      dueDate: dueDate || undefined,
-      notes: notes || undefined
-    });
+    // If initial amount is not provided or is less than current amount, default to current amount
+    let initAmt = parseFloat(initialAmount);
+    if (isNaN(initAmt)) initAmt = currentAmt;
+    if (initAmt < currentAmt) initAmt = currentAmt;
+
+    const intRate = parseFloat(interestRate);
+    const minPay = parseFloat(minimumPayment);
+
+    // Construct object dynamically to avoid undefined values
+    const debtData: any = {
+        name,
+        amount: currentAmt,
+        initialAmount: initAmt,
+        date: date
+    };
+
+    if (!isNaN(intRate)) debtData.interestRate = intRate;
+    if (!isNaN(minPay)) debtData.minimumPayment = minPay;
+    if (dueDate) debtData.dueDate = dueDate;
+    if (notes) debtData.notes = notes;
+    if (category) debtData.category = category;
+
+    addDebt(debtData);
     
     setName('');
     setAmount('');
     setInitialAmount('');
+    setDate(new Date().toISOString().split('T')[0]);
     setInterestRate('');
     setMinimumPayment('');
     setDueDate('');
     setNotes('');
+    setCategory('');
     setShowDetails(false);
     onClose();
   };
@@ -82,6 +101,17 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
               required
             />
           </div>
+        </div>
+
+        <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Date</label>
+            <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                required
+            />
         </div>
 
         <div>
@@ -139,6 +169,20 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                                 />
                             </div>
                         </div>
+                     </div>
+
+                     <div>
+                        <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Category</label>
+                        <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                        >
+                            <option value="">Select...</option>
+                            {expenseCategories.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                            ))}
+                        </select>
                      </div>
 
                      <div>

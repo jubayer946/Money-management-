@@ -1,5 +1,4 @@
 
-
 export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export interface Wallet {
@@ -41,6 +40,8 @@ export interface Debt {
   minimumPayment?: number;
   dueDate?: string;
   notes?: string;
+  category?: string;
+  date?: string;
 }
 
 export interface DebtPayment {

@@ -13,17 +13,45 @@ interface SettingsModalProps {
 
 const COLORS = [
   '#ef4444', // Red
+  '#dc2626', // Red 600
   '#f97316', // Orange
+  '#ea580c', // Orange 600
   '#f59e0b', // Amber
+  '#d97706', // Amber 600
+  '#eab308', // Yellow
+  '#ca8a04', // Yellow 600
+  '#84cc16', // Lime
+  '#65a30d', // Lime 600
+  '#22c55e', // Green
+  '#16a34a', // Green 600
   '#10b981', // Emerald
-  '#06b6d4', // Cyan
-  '#3b82f6', // Blue
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
-  '#d946ef', // Fuchsia
-  '#f43f5e', // Rose
-  '#64748b', // Slate
+  '#059669', // Emerald 600
   '#14b8a6', // Teal
+  '#0d9488', // Teal 600
+  '#06b6d4', // Cyan
+  '#0891b2', // Cyan 600
+  '#0ea5e9', // Sky
+  '#0284c7', // Sky 600
+  '#3b82f6', // Blue
+  '#2563eb', // Blue 600
+  '#6366f1', // Indigo
+  '#4f46e5', // Indigo 600
+  '#8b5cf6', // Violet
+  '#7c3aed', // Violet 600
+  '#a855f7', // Purple
+  '#9333ea', // Purple 600
+  '#d946ef', // Fuchsia
+  '#c026d3', // Fuchsia 600
+  '#ec4899', // Pink
+  '#db2777', // Pink 600
+  '#f43f5e', // Rose
+  '#e11d48', // Rose 600
+  '#64748b', // Slate
+  '#475569', // Slate 600
+  '#78716c', // Stone
+  '#57534e', // Stone 600
+  '#404040', // Neutral 700
+  '#171717', // Neutral 900
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {

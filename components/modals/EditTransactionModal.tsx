@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
@@ -37,10 +36,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
     e.preventDefault();
     if (!transaction || !amount) return;
     
+    // Fallback logic: Description -> Category -> Type
+    const finalDesc = desc.trim() || category || (type === 'income' ? 'Income' : 'Expense');
+
     updateTransaction({
       ...transaction,
       type,
-      desc,
+      desc: finalDesc,
       amount: parseFloat(amount),
       category,
       date,
@@ -82,13 +84,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
         </div>
 
         <div>
-            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Description</label>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Description <span className="text-neutral-300 dark:text-neutral-600 font-normal normal-case">(optional)</span></label>
             <input
                 type="text"
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
-                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
-                required
+                placeholder={category ? `Defaults to: ${category}` : "Description"}
+                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white placeholder:text-neutral-400"
             />
         </div>
 
