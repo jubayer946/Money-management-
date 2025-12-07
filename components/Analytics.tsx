@@ -6,6 +6,7 @@ import { PieChart as PieIcon, ChevronDown, Plus, AlertCircle, ChevronLeft, Chevr
 import { ChartPeriod, TransactionType, Budget } from '../types';
 import { ChartSection } from './ChartSection';
 import { BudgetModal } from './modals/BudgetModal';
+import { CategoryTransactionsModal } from './modals/CategoryTransactionsModal';
 
 export const Analytics: React.FC = () => {
   const { transactions, categories, budgets } = useFinance();
@@ -17,6 +18,9 @@ export const Analytics: React.FC = () => {
   // Budget State
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+
+  // Category Detail State
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // --- Date Navigation ---
   const handlePrev = () => {
@@ -290,7 +294,11 @@ export const Analytics: React.FC = () => {
                   const catColor = categories.find(c => c.name === catName)?.color || '#a3a3a3';
                   
                   return (
-                    <div key={catName} className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-100 dark:border-neutral-800 shadow-sm flex flex-col gap-2">
+                    <div 
+                      key={catName} 
+                      onClick={() => setSelectedCategory(catName)}
+                      className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-100 dark:border-neutral-800 shadow-sm flex flex-col gap-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:scale-[1.01] transition-all"
+                    >
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                           <div 
@@ -301,8 +309,9 @@ export const Analytics: React.FC = () => {
                           </div>
                           <span className="font-medium text-neutral-900 dark:text-white text-sm">{catName}</span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex items-center gap-2">
                           <div className="font-medium text-neutral-900 dark:text-white">${val.toLocaleString()}</div>
+                          <ChevronRight size={14} className="text-neutral-300 dark:text-neutral-700" />
                         </div>
                       </div>
                       
@@ -399,6 +408,15 @@ export const Analytics: React.FC = () => {
           isOpen={isBudgetModalOpen} 
           onClose={() => setIsBudgetModalOpen(false)} 
           budget={editingBudget} 
+      />
+
+      <CategoryTransactionsModal 
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        category={selectedCategory || ''}
+        type={activeType || 'expense'}
+        period={period}
+        currentDate={currentDate}
       />
     </div>
   );
