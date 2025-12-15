@@ -1,7 +1,6 @@
 
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Saving, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Wallet, Budget } from '../types';
+import { Transaction, Saving, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Wallet, Budget, SavingTransaction } from '../types';
 import { db } from '../firebaseConfig';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 
@@ -22,6 +21,7 @@ const DEFAULT_CATEGORIES = [
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
+  const [savingTransactions, setSavingTransactions] = useState<SavingTransaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,6 +34,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   useEffect(() => {
     const txRef = ref(db, 'transactions');
     const savingsRef = ref(db, 'savings');
+    const savingTxRef = ref(db, 'savingTransactions');
     const debtsRef = ref(db, 'debts');
     const debtPaymentsRef = ref(db, 'debtPayments');
     const catsRef = ref(db, 'categories');
@@ -52,6 +53,12 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       const data = snapshot.val();
       const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
       setSavings(list);
+    });
+
+    const unsubSavingTx = onValue(savingTxRef, (snapshot) => {
+      const data = snapshot.val();
+      const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      setSavingTransactions(list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     });
 
     const unsubDebts = onValue(debtsRef, (snapshot) => {
@@ -110,6 +117,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => {
       unsubTx();
       unsubSavings();
+      unsubSavingTx();
       unsubDebts();
       unsubDebtPayments();
       unsubCats();
@@ -181,6 +189,18 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const deleteSaving = (id: string) => {
     remove(ref(db, `savings/${id}`));
+  };
+
+  const addSavingTransaction = (st: Omit<SavingTransaction, 'id'>) => {
+    push(ref(db, 'savingTransactions'), st);
+    // Update the saving amount
+    const saving = savings.find(s => s.id === st.savingId);
+    if (saving) {
+        const newAmount = st.type === 'deposit' 
+            ? saving.amount + st.amount 
+            : Math.max(0, saving.amount - st.amount);
+        update(ref(db, `savings/${saving.id}`), { amount: newAmount });
+    }
   };
 
   const addDebt = (d: Omit<Debt, 'id'>) => {
@@ -294,6 +314,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     <FinanceContext.Provider value={{
       transactions,
       savings,
+      savingTransactions,
       debts,
       debtPayments,
       categories,
@@ -305,6 +326,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       deleteTransaction,
       addSaving,
       deleteSaving,
+      addSavingTransaction,
       addDebt,
       updateDebt,
       deleteDebt,

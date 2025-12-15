@@ -25,6 +25,14 @@ export interface Saving {
   amount: number;
 }
 
+export interface SavingTransaction {
+  id: string;
+  savingId: string;
+  amount: number;
+  type: 'deposit' | 'withdraw';
+  date: string;
+}
+
 export interface Budget {
   id: string;
   category: string;
@@ -84,6 +92,7 @@ export interface RecurringTransaction {
 export interface FinanceContextType {
   transactions: Transaction[];
   savings: Saving[];
+  savingTransactions: SavingTransaction[];
   debts: Debt[];
   debtPayments: DebtPayment[];
   categories: Category[];
@@ -95,6 +104,7 @@ export interface FinanceContextType {
   deleteTransaction: (id: string) => void;
   addSaving: (s: Omit<Saving, 'id'>) => void;
   deleteSaving: (id: string) => void;
+  addSavingTransaction: (st: Omit<SavingTransaction, 'id'>) => void;
   addDebt: (d: Omit<Debt, 'id'>) => void;
   updateDebt: (d: Debt) => void;
   deleteDebt: (id: string) => void;
