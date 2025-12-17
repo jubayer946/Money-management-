@@ -1,12 +1,5 @@
 
-export type TransactionType = 'income' | 'expense' | 'transfer';
-
-export interface Wallet {
-  id: string;
-  name: string;
-  type: 'digital' | 'bank' | 'cash';
-  color: string;
-}
+export type TransactionType = 'income' | 'expense';
 
 export interface Transaction {
   id: string;
@@ -15,8 +8,7 @@ export interface Transaction {
   amount: number;
   category: string;
   date: string; // ISO date string YYYY-MM-DD
-  walletId?: string;
-  targetWalletId?: string;
+  isRecurring?: boolean;
 }
 
 export interface Saving {
@@ -97,7 +89,6 @@ export interface FinanceContextType {
   debtPayments: DebtPayment[];
   categories: Category[];
   recurringTransactions: RecurringTransaction[];
-  wallets: Wallet[];
   budgets: Budget[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   updateTransaction: (t: Transaction) => void;
@@ -113,13 +104,11 @@ export interface FinanceContextType {
   updateCategory: (c: Category) => void;
   deleteCategory: (id: string) => void;
   addRecurringTransaction: (t: Omit<RecurringTransaction, 'id'>) => void;
+  updateRecurringTransaction: (t: RecurringTransaction) => void;
   deleteRecurringTransaction: (id: string) => void;
-  addWallet: (w: Omit<Wallet, 'id'>) => void;
-  deleteWallet: (id: string) => void;
   addBudget: (b: Omit<Budget, 'id'>) => void;
   updateBudget: (b: Budget) => void;
   deleteBudget: (id: string) => void;
-  getWalletBalance: (id?: string) => number;
   getBalance: () => number;
   getIncome: () => number;
   getExpenses: () => number;

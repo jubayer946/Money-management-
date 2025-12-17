@@ -1,8 +1,7 @@
 
-
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { ArrowUp, ArrowDown, ChevronRight, Search, X, Filter, CheckSquare, Square, Trash2, FolderInput } from 'lucide-react';
+import { ArrowUp, ArrowDown, ChevronRight, Search, X, Filter, CheckSquare, Square, Trash2, FolderInput, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from './ui/Modal';
 import { TransactionType } from '../types';
@@ -299,6 +298,12 @@ export const TransactionList: React.FC = () => {
                               <span className="opacity-50">•</span>
                               {t.category}
                             </>
+                        )}
+                        {t.isRecurring && (
+                             <>
+                               <span className="opacity-50">•</span>
+                               <Repeat size={10} className="text-neutral-400 dark:text-neutral-500" />
+                             </>
                         )}
                       </div>
                     </div>

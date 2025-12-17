@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { ArrowUp, ArrowDown, PiggyBank, Settings, ChevronRight } from 'lucide-react';
+import { ArrowUp, ArrowDown, PiggyBank, Settings, ChevronRight, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SavingsModal } from './modals/SavingsModal';
 import { SettingsModal } from './modals/SettingsModal';
@@ -106,6 +106,12 @@ export const Dashboard: React.FC = () => {
                              <span className="opacity-50">•</span>
                              {t.category}
                           </>
+                      )}
+                      {t.isRecurring && (
+                         <>
+                           <span className="opacity-50">•</span>
+                           <Repeat size={10} className="text-neutral-400 dark:text-neutral-500" />
+                         </>
                       )}
                     </div>
                   </div>

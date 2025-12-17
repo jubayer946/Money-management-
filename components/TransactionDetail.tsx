@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFinance } from '../context/FinanceContext';
-import { ChevronLeft, Edit2, Trash2, Calendar, Tag, CreditCard, Wallet, DollarSign } from 'lucide-react';
+import { ChevronLeft, Edit2, Trash2, Calendar, Tag, CreditCard, DollarSign, Repeat } from 'lucide-react';
 import { EditTransactionModal } from './modals/EditTransactionModal';
 
 export const TransactionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { transactions, deleteTransaction, wallets } = useFinance();
+  const { transactions, deleteTransaction } = useFinance();
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   // Compare as string since Firebase IDs are strings
@@ -27,10 +27,6 @@ export const TransactionDetail: React.FC = () => {
     deleteTransaction(transaction.id);
     navigate(-1);
   };
-
-  const walletName = transaction.walletId 
-    ? (wallets.find(w => w.id === transaction.walletId)?.name || 'Unknown Wallet') 
-    : 'Main Balance';
 
   return (
     <div className="pb-10 pt-6 px-6 max-w-md mx-auto min-h-screen flex flex-col bg-neutral-50 dark:bg-neutral-950">
@@ -62,8 +58,9 @@ export const TransactionDetail: React.FC = () => {
         
         {/* Description - Top Priority */}
         <div className="mb-8">
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white leading-tight mb-2 break-words">
+            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white leading-tight mb-2 break-words flex items-center gap-2">
                 {transaction.desc}
+                {transaction.isRecurring && <Repeat size={20} className="text-neutral-400" />}
             </h1>
             <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400 font-medium text-sm">
                 <Calendar size={16} className="opacity-70" />
@@ -101,7 +98,7 @@ export const TransactionDetail: React.FC = () => {
              </div>
 
              {/* Type Row */}
-             <div className="p-5 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800">
+             <div className="p-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 dark:text-neutral-400">
                         <CreditCard size={18} />
@@ -110,19 +107,6 @@ export const TransactionDetail: React.FC = () => {
                 </div>
                 <div className="font-semibold text-neutral-900 dark:text-white capitalize">
                     {transaction.type}
-                </div>
-             </div>
-             
-             {/* Wallet Row */}
-             <div className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 dark:text-neutral-400">
-                        <Wallet size={18} />
-                    </div>
-                    <span className="font-medium text-neutral-500 dark:text-neutral-400">Wallet</span>
-                </div>
-                <div className="font-semibold text-neutral-900 dark:text-white">
-                    {walletName}
                 </div>
              </div>
         </div>

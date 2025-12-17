@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Saving, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Wallet, Budget, SavingTransaction } from '../types';
+import { Transaction, Saving, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, SavingTransaction } from '../types';
 import { db } from '../firebaseConfig';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 
@@ -15,7 +15,6 @@ const DEFAULT_CATEGORIES = [
   { id: '6', name: 'Shopping', type: 'expense', color: '#ec4899' },
   { id: '7', name: 'Bills', type: 'expense', color: '#ef4444' },
   { id: '8', name: 'Entertainment', type: 'expense', color: '#06b6d4' },
-  { id: '9', name: 'Transfer', type: 'transfer', color: '#64748b' },
 ];
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -26,7 +25,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
-  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +37,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const debtPaymentsRef = ref(db, 'debtPayments');
     const catsRef = ref(db, 'categories');
     const recurringRef = ref(db, 'recurringTransactions');
-    const walletsRef = ref(db, 'wallets');
     const budgetsRef = ref(db, 'budgets');
 
     const unsubTx = onValue(txRef, (snapshot) => {
@@ -102,12 +99,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       setLoading(false);
     });
 
-    const unsubWallets = onValue(walletsRef, (snapshot) => {
-      const data = snapshot.val();
-      const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-      setWallets(list);
-    });
-
     const unsubBudgets = onValue(budgetsRef, (snapshot) => {
       const data = snapshot.val();
       const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
@@ -122,7 +113,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       unsubDebtPayments();
       unsubCats();
       unsubRecurring();
-      unsubWallets();
       unsubBudgets();
     };
   }, []);
@@ -132,35 +122,54 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (loading) return;
 
     const checkRecurring = () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const now = new Date();
+      // Use local midnight for comparison to avoid timezone issues
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       recurringTransactions.forEach(rt => {
-        const start = new Date(rt.startDate);
-        const last = rt.lastProcessed ? new Date(rt.lastProcessed) : new Date(start.getTime() - 86400000); 
+        // Parse startDate safely as local time
+        const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
+        const startDate = new Date(startYear, startMonth - 1, startDay);
         
-        let nextDue = new Date(last);
+        let nextDue: Date;
         
-        // Calculate next due date
-        if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
-        if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
-        if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
-        if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
+        // Logic: If never processed, start date is the first due date.
+        // Otherwise, calculate next cycle from last processed date.
+        if (!rt.lastProcessed) {
+            nextDue = startDate;
+        } else {
+            const [lastYear, lastMonth, lastDay] = rt.lastProcessed.split('-').map(Number);
+            const lastProcessed = new Date(lastYear, lastMonth - 1, lastDay);
+            
+            nextDue = new Date(lastProcessed);
+            
+            if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
+            if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
+            if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
+            if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
+        }
 
-        // If next due date is today or in the past
-        if (nextDue <= today) {
-          // Add to Firebase
+        // Compare using timestamps to check if due date is today or in the past
+        if (nextDue.getTime() <= today.getTime()) {
+          // Format the date as YYYY-MM-DD local string
+          const y = nextDue.getFullYear();
+          const m = String(nextDue.getMonth() + 1).padStart(2, '0');
+          const d = String(nextDue.getDate()).padStart(2, '0');
+          const dueString = `${y}-${m}-${d}`;
+
+          // Add to Firebase with isRecurring flag
           push(ref(db, 'transactions'), {
             type: rt.type,
             desc: rt.desc,
             amount: rt.amount,
             category: rt.category,
-            date: nextDue.toISOString().split('T')[0]
+            date: dueString,
+            isRecurring: true
           });
           
-          // Update last processed
+          // Update last processed to the due date we just handled
           update(ref(db, `recurringTransactions/${rt.id}`), {
-            lastProcessed: nextDue.toISOString().split('T')[0]
+            lastProcessed: dueString
           });
         }
       });
@@ -237,16 +246,13 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     push(ref(db, 'recurringTransactions'), t);
   };
 
+  const updateRecurringTransaction = (t: RecurringTransaction) => {
+    const { id, ...data } = t;
+    update(ref(db, `recurringTransactions/${id}`), data);
+  };
+
   const deleteRecurringTransaction = (id: string) => {
     remove(ref(db, `recurringTransactions/${id}`));
-  };
-
-  const addWallet = (w: Omit<Wallet, 'id'>) => {
-    push(ref(db, 'wallets'), w);
-  };
-
-  const deleteWallet = (id: string) => {
-    remove(ref(db, `wallets/${id}`));
   };
 
   const addBudget = (b: Omit<Budget, 'id'>) => {
@@ -262,40 +268,9 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     remove(ref(db, `budgets/${id}`));
   };
 
-  const getWalletBalance = (walletId?: string) => {
-    return transactions.reduce((acc, t) => {
-        if (walletId) {
-            // Specific Wallet Logic
-            if (t.type === 'income' && t.walletId === walletId) return acc + t.amount;
-            if (t.type === 'expense' && t.walletId === walletId) return acc - t.amount;
-            
-            if (t.type === 'transfer') {
-                if (t.targetWalletId === walletId) return acc + t.amount;
-                if (t.walletId === walletId) return acc - t.amount;
-            }
-        } else {
-            // Main Balance Logic (transactions with no walletId)
-            if (t.type === 'income' && !t.walletId) return acc + t.amount;
-            if (t.type === 'expense' && !t.walletId) return acc - t.amount;
-            
-            if (t.type === 'transfer') {
-                // If source is main
-                if (!t.walletId) return acc - t.amount;
-                // If destination is main (target is empty/undefined and source is a wallet)
-                if (!t.targetWalletId && t.walletId) return acc + t.amount;
-            }
-        }
-        return acc;
-    }, 0);
-  };
-
   // Global Net Worth
   const getBalance = () => {
     return transactions.reduce((acc, t) => {
-      // Transfers don't change net worth if logic is single-wallet, 
-      // but conceptually they are ignored in net worth anyway.
-      if (t.type === 'transfer') return acc;
-      
       if (t.type === 'income') return acc + t.amount;
       if (t.type === 'expense') return acc - t.amount;
       return acc;
@@ -319,7 +294,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       debtPayments,
       categories,
       recurringTransactions,
-      wallets,
       budgets,
       addTransaction,
       updateTransaction,
@@ -335,13 +309,11 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       updateCategory,
       deleteCategory,
       addRecurringTransaction,
+      updateRecurringTransaction,
       deleteRecurringTransaction,
-      addWallet,
-      deleteWallet,
       addBudget,
       updateBudget,
       deleteBudget,
-      getWalletBalance,
       getBalance,
       getIncome,
       getExpenses,

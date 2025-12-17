@@ -8,7 +8,7 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
     
     // Filter out transfers for Income/Expense charts to avoid skewing data
     // Note: For pure Net Worth, transfers within own accounts cancel out, but we filter here to keep the income/expense lines clean.
-    const relevantTransactions = transactions.filter(t => t.type !== 'transfer');
+    const relevantTransactions = transactions;
     
     // Determine the start (cutoff) and end date for the chart period
     const startDate = new Date(currentDate);
@@ -46,8 +46,6 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
     let initialBalance = 0;
     
     transactions.forEach(t => {
-      if (t.type === 'transfer') return;
-
       const tDate = new Date(t.date);
       // We compare purely based on the date string to avoid timezone complexity for "start of day" logic
       // essentially: if tDate < startDate
