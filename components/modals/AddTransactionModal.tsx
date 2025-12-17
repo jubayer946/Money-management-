@@ -23,6 +23,86 @@ interface BatchItem {
   date: string;
 }
 
+interface BatchItemRowProps {
+  item: BatchItem;
+  onRemove: (id: string) => void;
+  onAddAmount: (id: string, amount: number) => void;
+}
+
+// Sub-component for individual batch items with calculator
+const BatchItemRow: React.FC<BatchItemRowProps> = ({ 
+    item, 
+    onRemove, 
+    onAddAmount 
+}) => {
+    const [addInput, setAddInput] = useState('');
+
+    const handleAdd = () => {
+        const val = parseFloat(addInput);
+        if (!isNaN(val) && val !== 0) {
+            onAddAmount(item.id, val);
+            setAddInput('');
+        }
+    };
+
+    return (
+        <div className="flex flex-col p-3 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-xl shadow-sm animate-in slide-in-from-top-2">
+            <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                        {item.type === 'income' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                    </div>
+                    <div className="overflow-hidden">
+                        <div className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-[150px]">{item.desc}</div>
+                        <div className="text-[10px] text-neutral-500 truncate max-w-[150px]">
+                            {item.category}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="font-bold text-sm text-neutral-900 dark:text-white whitespace-nowrap">${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <button 
+                        type="button" 
+                        onClick={() => onRemove(item.id)}
+                        className="text-neutral-400 hover:text-red-500"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
+            
+            {/* Small box to add money */}
+            <div className="flex items-center gap-2 pl-11">
+                <div className="relative flex-1">
+                   <div className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400 text-[10px] font-bold">+</div>
+                   <input 
+                      type="number" 
+                      value={addInput}
+                      onChange={(e) => setAddInput(e.target.value)}
+                      onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAdd();
+                          }
+                      }}
+                      placeholder="Add amount..."
+                      className="w-full h-8 pl-6 pr-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:border-neutral-400 dark:focus:border-neutral-500 rounded-lg text-xs outline-none transition-all text-neutral-900 dark:text-white placeholder:text-neutral-400"
+                   />
+                </div>
+                {addInput && (
+                    <button
+                        type="button"
+                        onClick={handleAdd}
+                        className="h-8 px-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm hover:opacity-90 transition-opacity"
+                    >
+                        Add
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClose }) => {
   const { addTransaction, addDebt, addRecurringTransaction, categories } = useFinance();
   const [activeTab, setActiveTab] = useState<TabType>('expense');
@@ -157,6 +237,15 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen
 
   const removeBatchItem = (id: string) => {
       setBatchList(batchList.filter(item => item.id !== id));
+  };
+
+  const updateBatchItemAmount = (id: string, amountToAdd: number) => {
+    setBatchList(prev => prev.map(item => {
+        if (item.id === id) {
+            return { ...item, amount: item.amount + amountToAdd };
+        }
+        return item;
+    }));
   };
 
   const handleBatchSave = () => {
@@ -465,29 +554,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen
                         </div>
                         <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
                             {batchList.map(item => (
-                                <div key={item.id} className="flex justify-between items-center p-3 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-xl shadow-sm animate-in slide-in-from-top-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-                                            {item.type === 'income' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                        </div>
-                                        <div>
-                                            <div className="text-xs font-bold text-neutral-900 dark:text-white">{item.desc}</div>
-                                            <div className="text-[10px] text-neutral-500">
-                                                {item.category}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="font-bold text-sm text-neutral-900 dark:text-white">${item.amount.toLocaleString()}</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => removeBatchItem(item.id)}
-                                            className="text-neutral-400 hover:text-red-500"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
+                                <BatchItemRow 
+                                    key={item.id} 
+                                    item={item} 
+                                    onRemove={removeBatchItem} 
+                                    onAddAmount={updateBatchItemAmount} 
+                                />
                             ))}
                         </div>
                         
