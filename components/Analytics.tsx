@@ -1,19 +1,22 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { FinanceVisualizer } from './ExpenseVisualizer';
 import { useFinance } from '../context/FinanceContext';
-import { PieChart as PieIcon, ChevronDown, Plus, AlertCircle, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { ChartPeriod, TransactionType, Budget } from '../types';
+import { PieChart as PieIcon, ChevronDown, Plus, AlertCircle, ChevronLeft, ChevronRight, Calendar, ArrowUp, ArrowDown, X, Tag } from 'lucide-react';
+import { ChartPeriod, TransactionType, Budget, ChartDataPoint } from '../types';
 import { ChartSection } from './ChartSection';
 import { BudgetModal } from './modals/BudgetModal';
 import { CategoryTransactionsModal } from './modals/CategoryTransactionsModal';
+import { useNavigate } from 'react-router-dom';
 
 export const Analytics: React.FC = () => {
   const { transactions, categories, budgets } = useFinance();
+  const navigate = useNavigate();
   const [period, setPeriod] = useState<ChartPeriod>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [slideIndex, setSlideIndex] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const [selectedPoint, setSelectedPoint] = useState<ChartDataPoint | null>(null);
   
   // Modal States
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
@@ -28,6 +31,7 @@ export const Analytics: React.FC = () => {
     if (period === 'month') newDate.setMonth(newDate.getMonth() - 1);
     if (period === 'year') newDate.setFullYear(newDate.getFullYear() - 1);
     setCurrentDate(newDate);
+    setSelectedPoint(null);
   };
 
   const handleNext = () => {
@@ -37,6 +41,7 @@ export const Analytics: React.FC = () => {
     if (period === 'month') newDate.setMonth(newDate.getMonth() + 1);
     if (period === 'year') newDate.setFullYear(newDate.getFullYear() + 1);
     setCurrentDate(newDate);
+    setSelectedPoint(null);
   };
 
   const isCurrentPeriod = () => {
@@ -76,6 +81,7 @@ export const Analytics: React.FC = () => {
     const periods: ChartPeriod[] = ['week', 'month', 'year'];
     setPeriod(periods[(periods.indexOf(period) + 1) % periods.length]);
     setCurrentDate(new Date());
+    setSelectedPoint(null);
   };
 
   const handleScroll = () => {
@@ -93,11 +99,42 @@ export const Analytics: React.FC = () => {
     }
   };
 
-  // --- Data Logic ---
+  // --- Selected Point Specific Data ---
+  const selectedPointTransactions = useMemo(() => {
+    if (!selectedPoint) return [];
+    
+    return transactions.filter(t => {
+      const tDate = new Date(t.date);
+      const adjustedDate = new Date(tDate.getTime() + tDate.getTimezoneOffset() * 60000);
+      
+      if (period === 'year' && selectedPoint.month !== undefined) {
+        return adjustedDate.getMonth() === selectedPoint.month && adjustedDate.getFullYear() === selectedPoint.year;
+      }
+      
+      if (selectedPoint.date) {
+        return adjustedDate.toDateString() === new Date(selectedPoint.date).toDateString();
+      }
+
+      return false;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedPoint, transactions, period]);
+
+  // Aggregated Categories for Selected Point
+  const selectedPointCatBreakdown = useMemo(() => {
+      if (!selectedPointTransactions.length) return { income: {}, expense: {} };
+      
+      return selectedPointTransactions.reduce((acc, t) => {
+          const cat = t.category || 'Uncategorized';
+          acc[t.type][cat] = (acc[t.type][cat] || 0) + t.amount;
+          return acc;
+      }, { income: {} as Record<string, number>, expense: {} as Record<string, number> });
+  }, [selectedPointTransactions]);
+
+  // --- Global Data Logic ---
   const viewMode = slideIndex === 0 ? 'overview' : slideIndex === 1 ? 'income' : 'expense';
   const activeType: TransactionType | null = (viewMode === 'income' || viewMode === 'expense') ? viewMode as TransactionType : null;
 
-  // Category Breakdown Logic
+  // Category Breakdown Logic for main slider tabs
   const categoryTotals: Record<string, number> = activeType ? transactions.filter(t => {
         if (t.type !== activeType) return false;
         const tDate = new Date(t.date);
@@ -146,7 +183,9 @@ export const Analytics: React.FC = () => {
       {/* Slider */}
       <div className="relative w-full mb-8">
         <div ref={sliderRef} onScroll={handleScroll} className="flex w-full overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth gap-4">
-            <div className="min-w-full snap-center h-[400px]"><ChartSection period={period} currentDate={currentDate} /></div>
+            <div className="min-w-full snap-center h-[400px]">
+              <ChartSection period={period} currentDate={currentDate} onPointSelect={setSelectedPoint} />
+            </div>
             <div className="min-w-full snap-center h-[400px]"><FinanceVisualizer type="income" period={period} currentDate={currentDate} /></div>
             <div className="min-w-full snap-center h-[400px]"><FinanceVisualizer type="expense" period={period} currentDate={currentDate} /></div>
         </div>
@@ -157,7 +196,103 @@ export const Analytics: React.FC = () => {
         </div>
       </div>
 
-      {/* Details List */}
+      {/* REFINED Hidden Minimized Section for Detailed Breakdown */}
+      {selectedPoint && (
+          <div className="mb-8 animate-in slide-in-from-top-4 fade-in duration-500">
+              <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[24px] overflow-hidden shadow-sm">
+                  <div className="flex justify-between items-center p-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                      <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                              <Calendar size={16} />
+                          </div>
+                          <span className="text-sm font-bold text-neutral-900 dark:text-white">
+                              {selectedPoint.label} {period === 'year' ? 'Breakdown' : ''}
+                          </span>
+                      </div>
+                      <button 
+                          onClick={() => setSelectedPoint(null)}
+                          className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 transition-colors"
+                      >
+                          <X size={16} />
+                      </button>
+                  </div>
+
+                  <div className="p-4 bg-white dark:bg-neutral-900 space-y-4">
+                      {/* High Level Metrics */}
+                      <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                              <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest mb-1">Total Income</div>
+                              <div className="text-lg font-bold text-neutral-900 dark:text-white">${selectedPoint.income.toLocaleString()}</div>
+                          </div>
+                          <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
+                              <div className="text-[10px] font-bold text-red-600 dark:text-red-500 uppercase tracking-widest mb-1">Total Expenses</div>
+                              <div className="text-lg font-bold text-neutral-900 dark:text-white">${selectedPoint.expense.toLocaleString()}</div>
+                          </div>
+                      </div>
+
+                      {/* Summary Chips (Where money comes from / goes to) */}
+                      {(selectedPoint.income > 0 || selectedPoint.expense > 0) && (
+                          <div className="space-y-3">
+                              {Object.keys(selectedPointCatBreakdown.income).length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                      {Object.entries(selectedPointCatBreakdown.income).map(([cat, val]) => (
+                                          <div key={cat} className="text-[10px] font-bold px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center gap-1 border border-emerald-100 dark:border-emerald-800">
+                                              <ArrowUp size={8} /> {cat}: ${val.toLocaleString()}
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                              {Object.keys(selectedPointCatBreakdown.expense).length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                      {Object.entries(selectedPointCatBreakdown.expense).map(([cat, val]) => (
+                                          <div key={cat} className="text-[10px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg flex items-center gap-1 border border-red-100 dark:border-red-800">
+                                              <ArrowDown size={8} /> {cat}: ${val.toLocaleString()}
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      )}
+
+                      {/* Transaction List */}
+                      <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar pt-2 border-t border-neutral-50 dark:border-neutral-800">
+                          {selectedPointTransactions.length === 0 ? (
+                              <div className="text-center py-8 text-neutral-400 text-xs italic">No activity for this period</div>
+                          ) : (
+                              selectedPointTransactions.map(t => {
+                                  const catColor = categories.find(c => c.name === t.category)?.color || '#a3a3a3';
+                                  return (
+                                      <div 
+                                          key={t.id} 
+                                          onClick={() => navigate(`/transaction/${t.id}`)}
+                                          className="flex items-center justify-between p-3 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-xl transition-colors cursor-pointer group border border-transparent hover:border-neutral-100 dark:hover:border-neutral-700"
+                                      >
+                                          <div className="flex items-center gap-3">
+                                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === 'income' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                                  {t.type === 'income' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                              </div>
+                                              <div>
+                                                  <div className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-[120px]">{t.desc}</div>
+                                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor }} />
+                                                      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">{t.category || 'Uncategorized'}</div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <div className={`text-xs font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-neutral-900 dark:text-white'}`}>
+                                              {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()}
+                                          </div>
+                                      </div>
+                                  );
+                              })
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Rest of the Analytics tabs */}
       {activeType && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mb-8">
             <h3 className="text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-4 px-1 flex items-center justify-between">

@@ -4,7 +4,7 @@ import Chart from 'chart.js/auto';
 import ZoomPlugin from 'chartjs-plugin-zoom';
 import { useFinance } from '../context/FinanceContext';
 import { useChartData } from '../hooks/useChartData';
-import { ChartPeriod } from '../types';
+import { ChartPeriod, ChartDataPoint } from '../types';
 import { RotateCcw, Plus, Minus, Search, X } from 'lucide-react';
 
 // Register the Zoom plugin globally for this component
@@ -13,9 +13,10 @@ Chart.register(ZoomPlugin);
 interface ChartSectionProps {
   period: ChartPeriod;
   currentDate: Date;
+  onPointSelect?: (point: ChartDataPoint | null) => void;
 }
 
-export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate }) => {
+export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate, onPointSelect }) => {
   const { transactions } = useFinance();
   const [hoverData, setHoverData] = useState<{ income: number; expense: number; balance: number } | null>(null);
   const [showControls, setShowControls] = useState(false);
@@ -151,6 +152,14 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
                 },
               }
             },
+            onClick: (event: any, elements: any) => {
+              if (elements && elements.length > 0) {
+                const index = elements[0].index;
+                onPointSelect?.(data[index]);
+              } else {
+                onPointSelect?.(null);
+              }
+            },
             onHover: (event: any, elements: any) => {
               if (elements && elements.length > 0) {
                 const index = elements[0].index;
@@ -159,7 +168,7 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
                   expense: data[index].expense,
                   balance: data[index].balance
                 });
-                if (event.native && event.native.target) (event.native.target as HTMLElement).style.cursor = 'grab';
+                if (event.native && event.native.target) (event.native.target as HTMLElement).style.cursor = 'pointer';
               } else {
                 setHoverData(null);
                 if (event.native && event.native.target) (event.native.target as HTMLElement).style.cursor = 'default';
@@ -173,7 +182,7 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
     return () => {
       if (chartInstance.current) chartInstance.current.destroy();
     };
-  }, [data]);
+  }, [data, onPointSelect]);
 
 
   return (
@@ -243,7 +252,7 @@ export const ChartSection: React.FC<ChartSectionProps> = ({ period, currentDate 
       </div>
 
       {/* Chart Canvas */}
-      <div className="relative h-[240px] w-full cursor-grab active:cursor-grabbing z-10 flex items-center">
+      <div className="relative h-[240px] w-full cursor-pointer z-10 flex items-center">
         <canvas ref={canvasRef} />
       </div>
     </div>

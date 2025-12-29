@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListOrdered } from 'lucide-react';
 
 interface AddDebtModalProps {
   isOpen: boolean;
@@ -10,7 +10,7 @@ interface AddDebtModalProps {
 }
 
 export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) => {
-  const { addDebt, categories } = useFinance();
+  const { debts, addDebt, categories } = useFinance();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [initialAmount, setInitialAmount] = useState('');
@@ -23,6 +23,7 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState('');
 
   const expenseCategories = categories ? categories.filter(c => c.type === 'expense') : [];
 
@@ -33,20 +34,23 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
     const currentAmt = parseFloat(amount);
     if (isNaN(currentAmt)) return;
 
-    // If initial amount is not provided or is less than current amount, default to current amount
     let initAmt = parseFloat(initialAmount);
     if (isNaN(initAmt)) initAmt = currentAmt;
     if (initAmt < currentAmt) initAmt = currentAmt;
 
     const intRate = parseFloat(interestRate);
     const minPay = parseFloat(minimumPayment);
+    const customPriority = parseInt(priority);
 
-    // Construct object dynamically to avoid undefined values
+    // Default priority is end of list
+    const finalPriority = !isNaN(customPriority) ? customPriority : debts.length;
+
     const debtData: any = {
         name,
         amount: currentAmt,
         initialAmount: initAmt,
-        date: date
+        date: date,
+        priority: finalPriority
     };
 
     if (!isNaN(intRate)) debtData.interestRate = intRate;
@@ -66,6 +70,7 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
     setDueDate('');
     setNotes('');
     setCategory('');
+    setPriority('');
     setShowDetails(false);
     onClose();
   };
@@ -114,22 +119,6 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
             />
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Original Amount (Optional)</label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
-            <input
-              type="number"
-              value={initialAmount}
-              onChange={(e) => setInitialAmount(e.target.value)}
-              placeholder="Leave blank if same as current"
-              step="0.01"
-              min="0.01"
-              className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
-            />
-          </div>
-        </div>
-
         {/* Collapsible Details Section */}
         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-2">
             <button
@@ -138,11 +127,26 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                 className="flex items-center gap-2 text-xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors py-2"
             >
                 {showDetails ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                Optional Details
+                Advanced Details
             </button>
 
             {showDetails && (
                 <div className="space-y-4 pt-2 animate-in slide-in-from-top-2 duration-200">
+                    <div>
+                        <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Original Amount</label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
+                            <input
+                                type="number"
+                                value={initialAmount}
+                                onChange={(e) => setInitialAmount(e.target.value)}
+                                placeholder="Leave blank if same as current"
+                                step="0.01"
+                                className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                            />
+                        </div>
+                    </div>
+
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Interest Rate (%)</label>
@@ -171,18 +175,35 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                         </div>
                      </div>
 
-                     <div>
-                        <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Category</label>
-                        <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
-                        >
-                            <option value="">Select...</option>
-                            {expenseCategories.map(c => (
-                            <option key={c.id} value={c.name}>{c.name}</option>
-                            ))}
-                        </select>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Category</label>
+                            <select
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                            >
+                                <option value="">Select...</option>
+                                {expenseCategories.map(c => (
+                                <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Priority Order</label>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">
+                                    <ListOrdered size={16} />
+                                </div>
+                                <input
+                                    type="number"
+                                    value={priority}
+                                    onChange={(e) => setPriority(e.target.value)}
+                                    placeholder={debts.length.toString()}
+                                    className="w-full p-4 pl-10 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
                      </div>
 
                      <div>

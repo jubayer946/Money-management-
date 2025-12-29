@@ -42,6 +42,7 @@ export interface Debt {
   notes?: string;
   category?: string;
   date?: string;
+  priority?: number;
 }
 
 export interface DebtPayment {

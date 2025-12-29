@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
 import { Debt } from '../../types';
-import { Trash2, DollarSign, History, Settings, Calendar } from 'lucide-react';
+import { Trash2, DollarSign, History, Settings, Calendar, ListOrdered } from 'lucide-react';
 
 interface EditDebtModalProps {
   debt: Debt | null;
@@ -25,6 +25,7 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState('');
   
   // Payment specific state
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -47,6 +48,7 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
       setDueDate(debt.dueDate || '');
       setNotes(debt.notes || '');
       setCategory(debt.category || '');
+      setPriority(debt.priority?.toString() || '');
 
       setRecordTransaction(true);
       setPaymentAmount('');
@@ -126,6 +128,7 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
 
     const intRate = parseFloat(interestRate);
     const minPay = parseFloat(minimumPayment);
+    const pVal = parseInt(priority);
 
     // Dynamic object construction to avoid undefined values, using null to clear fields
     const debtData: any = {
@@ -138,7 +141,8 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
       dueDate: dueDate || null,
       notes: notes || null,
       category: category || null,
-      date: date || null
+      date: date || null,
+      priority: !isNaN(pVal) ? pVal : (debt.priority ?? 0)
     };
 
     updateDebt(debtData);
@@ -255,14 +259,30 @@ export const EditDebtModal: React.FC<EditDebtModalProps> = ({ debt, isOpen, onCl
               </div>
           </div>
 
-          <div>
-             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Date</label>
-             <input
-                 type="date"
-                 value={date}
-                 onChange={(e) => setDate(e.target.value)}
-                 className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
-             />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Date</label>
+                <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                />
+            </div>
+            <div>
+                <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Priority Order</label>
+                <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">
+                        <ListOrdered size={16} />
+                    </div>
+                    <input
+                        type="number"
+                        value={priority}
+                        onChange={(e) => setPriority(e.target.value)}
+                        className="w-full p-4 pl-10 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                    />
+                </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
