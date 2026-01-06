@@ -1,19 +1,30 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, ArrowUp, ArrowDown, Check } from 'lucide-react';
 import { AddDebtModal } from './modals/AddDebtModal';
 import { EditDebtModal } from './modals/EditDebtModal';
 import { Debt } from '../types';
 
 type SortOption = 'amount' | 'progress' | 'date' | 'priority';
 
+interface SwipeState {
+  id: string | null;
+  startX: number;
+  currentX: number;
+  isSwiping: boolean;
+}
+
 export const Debts: React.FC = () => {
-  const { debts, deleteDebt, updateDebt } = useFinance();
+  const { debts, deleteDebt, updateDebt, addTransaction, addDebtPayment } = useFinance();
   const [isAddDebtOpen, setIsAddDebtOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('priority');
   
+  // --- Swipe State ---
+  const [swipe, setSwipe] = useState<SwipeState>({ id: null, startX: 0, currentX: 0, isSwiping: false });
+  const SWIPE_THRESHOLD = 120; // px to trigger action
+
   // --- Debt Calculations ---
   const activeDebts = debts.filter(d => d.amount > 0);
   const paidDebts = debts.filter(d => d.amount === 0);
@@ -43,7 +54,6 @@ export const Debts: React.FC = () => {
       const dateB = b.date ? new Date(b.date).getTime() : 0;
       return dateB - dateA;
     } else {
-      // Custom Order (Priority)
       const pA = a.priority ?? 999;
       const pB = b.priority ?? 999;
       return pA - pB;
@@ -60,14 +70,12 @@ export const Debts: React.FC = () => {
     const currentDebt = sortedActiveDebts[currentIndex];
     const targetDebt = sortedActiveDebts[targetIndex];
 
-    // Swap priorities. If they don't have priorities yet, use their current indices.
     const currentPriority = currentDebt.priority ?? currentIndex;
     const targetPriority = targetDebt.priority ?? targetIndex;
 
     updateDebt({ ...currentDebt, priority: targetPriority });
     updateDebt({ ...targetDebt, priority: currentPriority });
     
-    // Ensure uniqueness if they happened to be the same
     if (currentPriority === targetPriority) {
         updateDebt({ ...currentDebt, priority: direction === 'up' ? targetPriority - 1 : targetPriority + 1 });
     }
@@ -82,6 +90,61 @@ export const Debts: React.FC = () => {
         deleteDebt(editingDebt.id);
         setEditingDebt(null);
     }
+  };
+
+  const settleDebt = (debt: Debt) => {
+    const remaining = debt.amount;
+    if (remaining <= 0) return;
+
+    // 1. Add Transaction
+    addTransaction({
+      type: 'expense',
+      desc: `Paid Off: ${debt.name}`,
+      amount: remaining,
+      category: 'Debt',
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    // 2. Track Payment History
+    addDebtPayment({
+      debtId: debt.id,
+      amount: remaining,
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    // 3. Update Debt to 0
+    updateDebt({
+      ...debt,
+      amount: 0
+    });
+  };
+
+  // --- Touch Event Handlers for Swipe ---
+  const onTouchStart = (e: React.TouchEvent, id: string) => {
+    setSwipe({ id, startX: e.touches[0].clientX, currentX: e.touches[0].clientX, isSwiping: true });
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!swipe.isSwiping) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - swipe.startX;
+    
+    // Only allow swiping to the right
+    if (diff > 0) {
+      setSwipe(prev => ({ ...prev, currentX }));
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!swipe.id) return;
+    
+    const diff = swipe.currentX - swipe.startX;
+    if (diff > SWIPE_THRESHOLD) {
+      const debtToPay = activeDebts.find(d => d.id === swipe.id);
+      if (debtToPay) settleDebt(debtToPay);
+    }
+
+    setSwipe({ id: null, startX: 0, currentX: 0, isSwiping: false });
   };
 
   return (
@@ -219,6 +282,8 @@ export const Debts: React.FC = () => {
             sortedActiveDebts.map((d, index) => {
                 const progress = getProgress(d);
                 const initial = d.initialAmount || d.amount;
+                const isSwipingThis = swipe.id === d.id;
+                const swipeOffset = isSwipingThis ? Math.max(0, swipe.currentX - swipe.startX) : 0;
                 
                 return (
                 <div 
@@ -245,63 +310,78 @@ export const Debts: React.FC = () => {
                         </div>
                     )}
 
-                    <div 
-                        onClick={() => handleEdit(d)}
-                        className="flex-1 p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
-                    >
-                        <div className="flex justify-between items-center relative z-10 mb-3">
-                            <div className="flex-1">
-                                <div className="font-semibold text-neutral-900 dark:text-white">{d.name}</div>
-                                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium flex items-center gap-1.5">
-                                    Original: ${initial.toLocaleString()}
-                                    {sortBy === 'priority' && <span className="text-neutral-300 dark:text-neutral-700">• Order: {d.priority ?? index}</span>}
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <div className="font-semibold text-lg text-orange-600 dark:text-orange-500">
-                                ${d.amount.toLocaleString()}
-                                </div>
+                    <div className="flex-1 relative overflow-hidden rounded-2xl touch-pan-y">
+                        {/* Swipe Action Background */}
+                        <div className="absolute inset-0 bg-green-500 flex items-center pl-6 transition-opacity duration-200" style={{ opacity: swipeOffset > 20 ? 1 : 0 }}>
+                            <div className="flex items-center gap-2 text-white">
+                                <Check size={24} strokeWidth={3} className={`transition-transform duration-200 ${swipeOffset > SWIPE_THRESHOLD ? 'scale-125' : 'scale-100'}`} />
+                                <span className="font-bold text-sm uppercase tracking-wider">Paid Off</span>
                             </div>
                         </div>
 
-                        <div className="relative z-10 mb-3">
-                            <div className="flex justify-between items-end mb-1.5">
-                                <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Paid Off</span>
-                                <span className="text-xs font-bold text-neutral-700 dark:text-white">{Math.round(progress)}%</span>
+                        {/* Swipeable Card */}
+                        <div 
+                            onTouchStart={(e) => onTouchStart(e, d.id)}
+                            onTouchMove={onTouchMove}
+                            onTouchEnd={onTouchEnd}
+                            onClick={() => !swipe.isSwiping && handleEdit(d)}
+                            style={{ transform: `translateX(${swipeOffset}px)` }}
+                            className={`p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer relative z-10 ${swipe.isSwiping && isSwipingThis ? 'transition-none' : 'transition-transform duration-300 ease-out'}`}
+                        >
+                            <div className="flex justify-between items-center relative z-10 mb-3">
+                                <div className="flex-1">
+                                    <div className="font-semibold text-neutral-900 dark:text-white">{d.name}</div>
+                                    <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium flex items-center gap-1.5">
+                                        Original: ${initial.toLocaleString()}
+                                        {sortBy === 'priority' && <span className="text-neutral-300 dark:text-neutral-700">• Order: {d.priority ?? index}</span>}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-semibold text-lg text-orange-600 dark:text-orange-500">
+                                    ${d.amount.toLocaleString()}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-1000"
-                                    style={{ width: `${progress}%` }}
-                                ></div>
-                            </div>
-                        </div>
 
-                        {(d.interestRate || d.minimumPayment || d.dueDate) && (
-                            <div className="relative z-10 flex flex-wrap gap-2 pt-1">
-                                {d.interestRate && (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md text-[10px] font-bold border border-red-100 dark:border-red-900/30">
-                                    <Percent size={10} />
-                                    {d.interestRate}% APR
+                            <div className="relative z-10 mb-3">
+                                <div className="flex justify-between items-end mb-1.5">
+                                    <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Paid Off</span>
+                                    <span className="text-xs font-bold text-neutral-700 dark:text-white">{Math.round(progress)}%</span>
                                 </div>
-                                )}
-                                {d.minimumPayment && (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-md text-[10px] font-bold border border-neutral-200 dark:border-neutral-700">
-                                    <DollarSign size={10} />
-                                    Min: ${d.minimumPayment.toLocaleString()}
+                                <div className="w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-1000"
+                                        style={{ width: `${progress}%` }}
+                                    ></div>
                                 </div>
-                                )}
-                                {d.dueDate && (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-md text-[10px] font-bold border border-blue-100 dark:border-blue-900/30">
-                                    <Calendar size={10} />
-                                    Due: {d.dueDate}
-                                </div>
-                                )}
                             </div>
-                        )}
-                        
-                        <div className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-neutral-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm border border-neutral-100 dark:border-neutral-700">
-                            <Edit2 size={14} className="text-neutral-500 dark:text-neutral-400" />
+
+                            {(d.interestRate || d.minimumPayment || d.dueDate) && (
+                                <div className="relative z-10 flex flex-wrap gap-2 pt-1">
+                                    {d.interestRate && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md text-[10px] font-bold border border-red-100 dark:border-red-900/30">
+                                        <Percent size={10} />
+                                        {d.interestRate}% APR
+                                    </div>
+                                    )}
+                                    {d.minimumPayment && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-md text-[10px] font-bold border border-neutral-200 dark:border-neutral-700">
+                                        <DollarSign size={10} />
+                                        Min: ${d.minimumPayment.toLocaleString()}
+                                    </div>
+                                    )}
+                                    {d.dueDate && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-md text-[10px] font-bold border border-blue-100 dark:border-blue-900/30">
+                                        <Calendar size={10} />
+                                        Due: {d.dueDate}
+                                    </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            <div className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-neutral-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm border border-neutral-100 dark:border-neutral-700">
+                                <Edit2 size={14} className="text-neutral-500 dark:text-neutral-400" />
+                            </div>
                         </div>
                     </div>
                 </div>
