@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, ArrowUp, ArrowDown, Check, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, Check, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { AddDebtModal } from './modals/AddDebtModal';
 import { EditDebtModal } from './modals/EditDebtModal';
 import { Debt } from '../types';
@@ -70,7 +70,6 @@ export const Debts: React.FC = () => {
     setDraggedId(id);
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
-    // Create a ghost image or just let it default
   };
 
   const handleDragOver = (e: React.DragEvent, id: string) => {
@@ -108,27 +107,6 @@ export const Debts: React.FC = () => {
   const handleDragEnd = () => {
     setDraggedId(null);
     setDragOverId(null);
-  };
-
-  const moveDebt = (id: string, direction: 'up' | 'down') => {
-    const currentIndex = sortedActiveDebts.findIndex(d => d.id === id);
-    if (currentIndex === -1) return;
-
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= sortedActiveDebts.length) return;
-
-    const currentDebt = sortedActiveDebts[currentIndex];
-    const targetDebt = sortedActiveDebts[targetIndex];
-
-    const currentPriority = currentDebt.priority ?? currentIndex;
-    const targetPriority = targetDebt.priority ?? targetIndex;
-
-    updateDebt({ ...currentDebt, priority: targetPriority });
-    updateDebt({ ...targetDebt, priority: currentPriority });
-    
-    if (currentPriority === targetPriority) {
-        updateDebt({ ...currentDebt, priority: direction === 'up' ? targetPriority - 1 : targetPriority + 1 });
-    }
   };
 
   const handleEdit = (debt: Debt) => {
@@ -171,7 +149,6 @@ export const Debts: React.FC = () => {
 
   // --- Touch Event Handlers for Swipe ---
   const onTouchStart = (e: React.TouchEvent, id: string) => {
-    // Only allow swipe if not dragging via grip
     setSwipe({ id, startX: e.touches[0].clientX, currentX: e.touches[0].clientX, isSwiping: true });
   };
 
@@ -347,34 +324,17 @@ export const Debts: React.FC = () => {
                     onDrop={(e) => sortBy === 'priority' && handleDrop(e, d.id)}
                     onDragEnd={handleDragEnd}
                 >
-                    {/* Reordering Controls (Desktop Drag + Mobile Arrows) */}
+                    {/* Reordering Grip Handle */}
                     {sortBy === 'priority' && (
-                        <div className="flex flex-col gap-1.5 justify-center">
-                            {/* Grip Handle for Reordering */}
+                        <div className="flex flex-col justify-center">
                             <div 
                               draggable
                               onDragStart={(e) => handleDragStart(e, d.id)}
-                              className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg cursor-grab active:cursor-grabbing transition-colors shadow-sm"
+                              className="w-10 h-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-xl cursor-grab active:cursor-grabbing transition-colors shadow-sm"
                               title="Hold and drag to reorder"
                             >
-                                <GripVertical size={16} />
+                                <GripVertical size={20} />
                             </div>
-                            
-                            {/* Quick Arrows */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); moveDebt(d.id, 'up'); }}
-                                disabled={index === 0}
-                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm sm:hidden"
-                            >
-                                <ArrowUp size={16} />
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); moveDebt(d.id, 'down'); }}
-                                disabled={index === sortedActiveDebts.length - 1}
-                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm sm:hidden"
-                            >
-                                <ArrowDown size={16} />
-                            </button>
                         </div>
                     )}
 
