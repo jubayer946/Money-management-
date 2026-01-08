@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, ArrowUp, ArrowDown, Check } from 'lucide-react';
+import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, ArrowUp, ArrowDown, Check, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { AddDebtModal } from './modals/AddDebtModal';
 import { EditDebtModal } from './modals/EditDebtModal';
 import { Debt } from '../types';
@@ -20,7 +20,12 @@ export const Debts: React.FC = () => {
   const [isAddDebtOpen, setIsAddDebtOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('priority');
+  const [isHistoryMinimized, setIsHistoryMinimized] = useState(true);
   
+  // --- Drag and Drop State ---
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   // --- Swipe State ---
   const [swipe, setSwipe] = useState<SwipeState>({ id: null, startX: 0, currentX: 0, isSwiping: false });
   const SWIPE_THRESHOLD = 120; // px to trigger action
@@ -59,6 +64,51 @@ export const Debts: React.FC = () => {
       return pA - pB;
     }
   });
+
+  // --- Drag and Drop Handlers ---
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Create a ghost image or just let it default
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (draggedId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain');
+    if (sourceId === targetId) return;
+
+    const newItems = [...sortedActiveDebts];
+    const sourceIndex = newItems.findIndex(d => d.id === sourceId);
+    const targetIndex = newItems.findIndex(d => d.id === targetId);
+
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const [removed] = newItems.splice(sourceIndex, 1);
+    newItems.splice(targetIndex, 0, removed);
+
+    // Update all priorities to match the new order
+    newItems.forEach((item, index) => {
+      if (item.priority !== index) {
+        updateDebt({ ...item, priority: index });
+      }
+    });
+
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
 
   const moveDebt = (id: string, direction: 'up' | 'down') => {
     const currentIndex = sortedActiveDebts.findIndex(d => d.id === id);
@@ -121,6 +171,7 @@ export const Debts: React.FC = () => {
 
   // --- Touch Event Handlers for Swipe ---
   const onTouchStart = (e: React.TouchEvent, id: string) => {
+    // Only allow swipe if not dragging via grip
     setSwipe({ id, startX: e.touches[0].clientX, currentX: e.touches[0].clientX, isSwiping: true });
   };
 
@@ -285,25 +336,42 @@ export const Debts: React.FC = () => {
                 const isSwipingThis = swipe.id === d.id;
                 const swipeOffset = isSwipingThis ? Math.max(0, swipe.currentX - swipe.startX) : 0;
                 
+                const isBeingDragged = draggedId === d.id;
+                const isDragTarget = dragOverId === d.id;
+
                 return (
                 <div 
                     key={d.id} 
-                    className="group flex gap-3 animate-in slide-in-from-right-4 duration-300"
+                    className={`group flex gap-3 animate-in slide-in-from-right-4 duration-300 transition-all ${isBeingDragged ? 'opacity-30' : 'opacity-100'} ${isDragTarget ? 'scale-[1.02] translate-x-1' : ''}`}
+                    onDragOver={(e) => sortBy === 'priority' && handleDragOver(e, d.id)}
+                    onDrop={(e) => sortBy === 'priority' && handleDrop(e, d.id)}
+                    onDragEnd={handleDragEnd}
                 >
-                    {/* Manual Reordering Controls */}
+                    {/* Reordering Controls (Desktop Drag + Mobile Arrows) */}
                     {sortBy === 'priority' && (
                         <div className="flex flex-col gap-1.5 justify-center">
+                            {/* Grip Handle for Reordering */}
+                            <div 
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, d.id)}
+                              className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg cursor-grab active:cursor-grabbing transition-colors shadow-sm"
+                              title="Hold and drag to reorder"
+                            >
+                                <GripVertical size={16} />
+                            </div>
+                            
+                            {/* Quick Arrows */}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); moveDebt(d.id, 'up'); }}
                                 disabled={index === 0}
-                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm"
+                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm sm:hidden"
                             >
                                 <ArrowUp size={16} />
                             </button>
                             <button 
                                 onClick={(e) => { e.stopPropagation(); moveDebt(d.id, 'down'); }}
                                 disabled={index === sortedActiveDebts.length - 1}
-                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm"
+                                className="w-8 h-8 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg disabled:opacity-20 transition-colors shadow-sm sm:hidden"
                             >
                                 <ArrowDown size={16} />
                             </button>
@@ -392,35 +460,47 @@ export const Debts: React.FC = () => {
 
         {/* Paid History */}
         {paidDebts.length > 0 && (
-            <div>
-                <div className="flex items-center gap-2 mb-4 px-1">
-                    <History size={14} className="text-neutral-400 dark:text-neutral-500" />
-                    <h2 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Paid History</h2>
-                </div>
+            <div className="mb-8">
+                <button 
+                    onClick={() => setIsHistoryMinimized(!isHistoryMinimized)}
+                    className="flex items-center justify-between w-full gap-2 mb-4 px-1 group"
+                >
+                    <div className="flex items-center gap-2">
+                        <History size={14} className="text-neutral-400 dark:text-neutral-500" />
+                        <h2 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
+                            Paid History ({paidDebts.length})
+                        </h2>
+                    </div>
+                    <div className="text-neutral-300 group-hover:text-neutral-500 dark:text-neutral-700 dark:group-hover:text-neutral-400 transition-colors">
+                        {isHistoryMinimized ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                    </div>
+                </button>
                 
-                <div className="space-y-3">
-                    {paidDebts.map(d => (
-                        <div 
-                            key={d.id} 
-                            onClick={() => handleEdit(d)}
-                            className="p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl flex justify-between items-center group cursor-pointer hover:bg-white dark:hover:bg-neutral-800 hover:border-neutral-200 dark:hover:border-neutral-700 transition-all"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
-                                    <CheckCircle2 size={18} strokeWidth={2.5} />
+                {!isHistoryMinimized && (
+                    <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                        {paidDebts.map(d => (
+                            <div 
+                                key={d.id} 
+                                onClick={() => handleEdit(d)}
+                                className="p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl flex justify-between items-center group cursor-pointer hover:bg-white dark:hover:bg-neutral-800 hover:border-neutral-200 dark:hover:border-neutral-700 transition-all"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+                                        <CheckCircle2 size={18} strokeWidth={2.5} />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium text-neutral-900 dark:text-white text-sm line-through decoration-neutral-300 dark:decoration-neutral-600">{d.name}</div>
+                                        <div className="text-xs text-neutral-400 dark:text-neutral-500 font-medium">Fully paid off</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-medium text-neutral-900 dark:text-white text-sm line-through decoration-neutral-300 dark:decoration-neutral-600">{d.name}</div>
-                                    <div className="text-xs text-neutral-400 dark:text-neutral-500 font-medium">Fully paid off</div>
+                                <div className="text-right">
+                                    <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium uppercase tracking-wider mb-0.5">Was</div>
+                                    <div className="font-medium text-neutral-900 dark:text-white text-sm">${(d.initialAmount || 0).toLocaleString()}</div>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium uppercase tracking-wider mb-0.5">Was</div>
-                                <div className="font-medium text-neutral-900 dark:text-white text-sm">${(d.initialAmount || 0).toLocaleString()}</div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         )}
       </div>
