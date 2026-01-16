@@ -1,7 +1,7 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, Check, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, Check, ChevronDown, ChevronRight, GripVertical, CheckSquare, Square, XCircle } from 'lucide-react';
 import { AddDebtModal } from './modals/AddDebtModal';
 import { EditDebtModal } from './modals/EditDebtModal';
 import { Debt } from '../types';
@@ -22,6 +22,10 @@ export const Debts: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('priority');
   const [isHistoryMinimized, setIsHistoryMinimized] = useState(true);
   
+  // --- Selection Mode State ---
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // --- Drag and Drop State ---
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -49,24 +53,53 @@ export const Debts: React.FC = () => {
     return ((init - d.amount) / init) * 100;
   };
 
-  const sortedActiveDebts = [...activeDebts].sort((a, b) => {
-    if (sortBy === 'amount') {
-      return b.amount - a.amount; 
-    } else if (sortBy === 'progress') {
-      return getProgress(b) - getProgress(a); 
-    } else if (sortBy === 'date') {
-      const dateA = a.date ? new Date(a.date).getTime() : 0;
-      const dateB = b.date ? new Date(b.date).getTime() : 0;
-      return dateB - dateA;
+  const sortedActiveDebts = useMemo(() => {
+    return [...activeDebts].sort((a, b) => {
+      if (sortBy === 'amount') {
+        return b.amount - a.amount; 
+      } else if (sortBy === 'progress') {
+        return getProgress(b) - getProgress(a); 
+      } else if (sortBy === 'date') {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      } else {
+        const pA = a.priority ?? 999;
+        const pB = b.priority ?? 999;
+        return pA - pB;
+      }
+    });
+  }, [activeDebts, sortBy]);
+
+  // --- Selection Helpers ---
+  const toggleSelectionMode = () => {
+    if (isSelectionMode) {
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
     } else {
-      const pA = a.priority ?? 999;
-      const pB = b.priority ?? 999;
-      return pA - pB;
+      setIsSelectionMode(true);
     }
-  });
+  };
+
+  const toggleItemSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectedTotal = useMemo(() => {
+    return activeDebts
+      .filter(d => selectedIds.has(d.id))
+      .reduce((sum, d) => sum + d.amount, 0);
+  }, [activeDebts, selectedIds]);
 
   // --- Drag and Drop Handlers ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    if (isSelectionMode) return; // Disable drag during selection
     setDraggedId(id);
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
@@ -74,13 +107,14 @@ export const Debts: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent, id: string) => {
     e.preventDefault();
-    if (draggedId !== id) {
+    if (!isSelectionMode && draggedId !== id) {
       setDragOverId(id);
     }
   };
 
   const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
+    if (isSelectionMode) return;
     const sourceId = e.dataTransfer.getData('text/plain');
     if (sourceId === targetId) return;
 
@@ -124,7 +158,6 @@ export const Debts: React.FC = () => {
     const remaining = debt.amount;
     if (remaining <= 0) return;
 
-    // 1. Add Transaction
     addTransaction({
       type: 'expense',
       desc: `Paid Off: ${debt.name}`,
@@ -133,14 +166,12 @@ export const Debts: React.FC = () => {
       date: new Date().toISOString().split('T')[0]
     });
 
-    // 2. Track Payment History
     addDebtPayment({
       debtId: debt.id,
       amount: remaining,
       date: new Date().toISOString().split('T')[0]
     });
 
-    // 3. Update Debt to 0
     updateDebt({
       ...debt,
       amount: 0
@@ -149,6 +180,7 @@ export const Debts: React.FC = () => {
 
   // --- Touch Event Handlers for Swipe ---
   const onTouchStart = (e: React.TouchEvent, id: string) => {
+    if (isSelectionMode) return; // Disable swipe during selection
     setSwipe({ id, startX: e.touches[0].clientX, currentX: e.touches[0].clientX, isSwiping: true });
   };
 
@@ -156,8 +188,6 @@ export const Debts: React.FC = () => {
     if (!swipe.isSwiping) return;
     const currentX = e.touches[0].clientX;
     const diff = currentX - swipe.startX;
-    
-    // Only allow swiping to the right
     if (diff > 0) {
       setSwipe(prev => ({ ...prev, currentX }));
     }
@@ -165,22 +195,30 @@ export const Debts: React.FC = () => {
 
   const onTouchEnd = () => {
     if (!swipe.id) return;
-    
     const diff = swipe.currentX - swipe.startX;
     if (diff > SWIPE_THRESHOLD) {
       const debtToPay = activeDebts.find(d => d.id === swipe.id);
       if (debtToPay) settleDebt(debtToPay);
     }
-
     setSwipe({ id: null, startX: 0, currentX: 0, isSwiping: false });
   };
 
   return (
-    <div className="pb-32 pt-6 px-5 max-w-md mx-auto min-h-screen">
+    <div className="pb-32 pt-6 px-5 max-w-md mx-auto min-h-screen relative">
       <header className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-medium tracking-tight text-neutral-900 dark:text-white">
-            Debts & Assets
-        </h1>
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-medium tracking-tight text-neutral-900 dark:text-white">
+              Debts & Assets
+          </h1>
+          {activeDebts.length > 0 && (
+            <button 
+              onClick={toggleSelectionMode}
+              className={`text-xs font-bold uppercase tracking-wider mt-1 text-left transition-colors ${isSelectionMode ? 'text-orange-500' : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}`}
+            >
+              {isSelectionMode ? 'Cancel Selection' : 'Select Multiple'}
+            </button>
+          )}
+        </div>
         <button 
           onClick={() => setIsAddDebtOpen(true)}
           className="w-10 h-10 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 hover:scale-105 transition-all"
@@ -246,7 +284,7 @@ export const Debts: React.FC = () => {
       {/* --- DEBTS LIST --- */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Sorting Controls */}
-            {activeDebts.length > 0 && (
+            {activeDebts.length > 0 && !isSelectionMode && (
             <div className="flex gap-1 mb-6 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-x-auto no-scrollbar">
             <button
                 onClick={() => setSortBy('priority')}
@@ -315,6 +353,7 @@ export const Debts: React.FC = () => {
                 
                 const isBeingDragged = draggedId === d.id;
                 const isDragTarget = dragOverId === d.id;
+                const isSelected = selectedIds.has(d.id);
 
                 return (
                 <div 
@@ -324,19 +363,26 @@ export const Debts: React.FC = () => {
                     onDrop={(e) => sortBy === 'priority' && handleDrop(e, d.id)}
                     onDragEnd={handleDragEnd}
                 >
-                    {/* Reordering Grip Handle */}
-                    {sortBy === 'priority' && (
-                        <div className="flex flex-col justify-center">
+                    {/* Reordering Grip Handle OR Selection Checkbox */}
+                    <div className="flex flex-col justify-center">
+                        {isSelectionMode ? (
+                            <button 
+                                onClick={() => toggleItemSelection(d.id)}
+                                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-sm ${isSelected ? 'bg-orange-500 text-white' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-300'}`}
+                            >
+                                {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                            </button>
+                        ) : sortBy === 'priority' && (
                             <div 
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, d.id)}
-                              className="w-10 h-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-xl cursor-grab active:cursor-grabbing transition-colors shadow-sm"
-                              title="Hold and drag to reorder"
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, d.id)}
+                                className="w-10 h-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-xl cursor-grab active:cursor-grabbing transition-colors shadow-sm"
+                                title="Hold and drag to reorder"
                             >
                                 <GripVertical size={20} />
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     <div className="flex-1 relative overflow-hidden rounded-2xl touch-pan-y">
                         {/* Swipe Action Background */}
@@ -352,9 +398,15 @@ export const Debts: React.FC = () => {
                             onTouchStart={(e) => onTouchStart(e, d.id)}
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
-                            onClick={() => !swipe.isSwiping && handleEdit(d)}
+                            onClick={() => {
+                                if (isSelectionMode) {
+                                    toggleItemSelection(d.id);
+                                } else if (!swipe.isSwiping) {
+                                    handleEdit(d);
+                                }
+                            }}
                             style={{ transform: `translateX(${swipeOffset}px)` }}
-                            className={`p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer relative z-10 ${swipe.isSwiping && isSwipingThis ? 'transition-none' : 'transition-transform duration-300 ease-out'}`}
+                            className={`p-5 bg-white dark:bg-neutral-900 border transition-all cursor-pointer relative z-10 ${isSelected ? 'border-orange-500 ring-1 ring-orange-500' : 'border-neutral-100 dark:border-neutral-800 shadow-sm hover:shadow-md'} ${swipe.isSwiping && isSwipingThis ? 'transition-none' : 'transition-transform duration-300 ease-out'} rounded-2xl`}
                         >
                             <div className="flex justify-between items-center relative z-10 mb-3">
                                 <div className="flex-1">
@@ -365,7 +417,7 @@ export const Debts: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-semibold text-lg text-orange-600 dark:text-orange-500">
+                                    <div className={`font-semibold text-lg transition-colors ${isSelected ? 'text-orange-600 dark:text-orange-400' : 'text-orange-600 dark:text-orange-500'}`}>
                                     ${d.amount.toLocaleString()}
                                     </div>
                                 </div>
@@ -378,7 +430,7 @@ export const Debts: React.FC = () => {
                                 </div>
                                 <div className="w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                                     <div 
-                                        className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-1000"
+                                        className={`h-full rounded-full transition-all duration-1000 ${isSelected ? 'bg-orange-600' : 'bg-gradient-to-r from-orange-400 to-orange-500'}`}
                                         style={{ width: `${progress}%` }}
                                     ></div>
                                 </div>
@@ -407,9 +459,11 @@ export const Debts: React.FC = () => {
                                 </div>
                             )}
                             
-                            <div className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-neutral-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm border border-neutral-100 dark:border-neutral-700">
-                                <Edit2 size={14} className="text-neutral-500 dark:text-neutral-400" />
-                            </div>
+                            {!isSelectionMode && (
+                              <div className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-neutral-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm border border-neutral-100 dark:border-neutral-700">
+                                  <Edit2 size={14} className="text-neutral-500 dark:text-neutral-400" />
+                              </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -419,7 +473,7 @@ export const Debts: React.FC = () => {
         </div>
 
         {/* Paid History */}
-        {paidDebts.length > 0 && (
+        {paidDebts.length > 0 && !isSelectionMode && (
             <div className="mb-8">
                 <button 
                     onClick={() => setIsHistoryMinimized(!isHistoryMinimized)}
@@ -464,6 +518,27 @@ export const Debts: React.FC = () => {
             </div>
         )}
       </div>
+
+      {/* Floating Selection Summary Bar */}
+      {isSelectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-24 left-5 right-5 z-50 max-w-md mx-auto">
+          <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-3xl p-5 shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-10 duration-500">
+             <div className="flex flex-col">
+                <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">To pay off {selectedIds.size} {selectedIds.size === 1 ? 'item' : 'items'}</div>
+                <div className="text-2xl font-bold tracking-tight text-orange-500">
+                  ${selectedTotal.toLocaleString()}
+                </div>
+             </div>
+             <button 
+                onClick={() => setSelectedIds(new Set())}
+                className="w-10 h-10 flex items-center justify-center bg-white/10 dark:bg-black/10 rounded-full hover:bg-white/20 dark:hover:bg-black/20 transition-colors"
+                title="Clear selection"
+             >
+                <XCircle size={20} />
+             </button>
+          </div>
+        </div>
+      )}
 
       <AddDebtModal isOpen={isAddDebtOpen} onClose={() => setIsAddDebtOpen(false)} />
       
