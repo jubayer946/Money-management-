@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, Check, ChevronDown, ChevronRight, GripVertical, CheckSquare, Square, XCircle } from 'lucide-react';
+import { Plus, CheckCircle2, History, TrendingUp, BarChart2, Edit2, Calendar, Percent, DollarSign, ListOrdered, Check, ChevronDown, ChevronRight, GripVertical, CheckSquare, Square, XCircle, Search, X } from 'lucide-react';
 import { AddDebtModal } from './modals/AddDebtModal';
 import { EditDebtModal } from './modals/EditDebtModal';
 import { Debt } from '../types';
@@ -21,6 +20,7 @@ export const Debts: React.FC = () => {
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('priority');
   const [isHistoryMinimized, setIsHistoryMinimized] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // --- Selection Mode State ---
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -54,7 +54,14 @@ export const Debts: React.FC = () => {
   };
 
   const sortedActiveDebts = useMemo(() => {
-    return [...activeDebts].sort((a, b) => {
+    let filtered = [...activeDebts];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(d => d.name.toLowerCase().includes(q));
+    }
+
+    return filtered.sort((a, b) => {
       if (sortBy === 'amount') {
         return b.amount - a.amount; 
       } else if (sortBy === 'progress') {
@@ -69,7 +76,7 @@ export const Debts: React.FC = () => {
         return pA - pB;
       }
     });
-  }, [activeDebts, sortBy]);
+  }, [activeDebts, sortBy, searchQuery]);
 
   // --- Selection Helpers ---
   const toggleSelectionMode = () => {
@@ -99,7 +106,7 @@ export const Debts: React.FC = () => {
 
   // --- Drag and Drop Handlers ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
-    if (isSelectionMode) return; // Disable drag during selection
+    if (isSelectionMode) return; 
     setDraggedId(id);
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
@@ -127,7 +134,6 @@ export const Debts: React.FC = () => {
     const [removed] = newItems.splice(sourceIndex, 1);
     newItems.splice(targetIndex, 0, removed);
 
-    // Update all priorities to match the new order
     newItems.forEach((item, index) => {
       if (item.priority !== index) {
         updateDebt({ ...item, priority: index });
@@ -178,9 +184,8 @@ export const Debts: React.FC = () => {
     });
   };
 
-  // --- Touch Event Handlers for Swipe ---
   const onTouchStart = (e: React.TouchEvent, id: string) => {
-    if (isSelectionMode) return; // Disable swipe during selection
+    if (isSelectionMode) return;
     setSwipe({ id, startX: e.touches[0].clientX, currentX: e.touches[0].clientX, isSwiping: true });
   };
 
@@ -228,8 +233,8 @@ export const Debts: React.FC = () => {
       </header>
 
       {/* Debt Summary Card */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-3xl p-6 shadow-xl shadow-orange-200/50 dark:shadow-none relative overflow-hidden text-white h-[220px] flex flex-col justify-between">
+      <div className="mb-6">
+        <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-3xl p-6 shadow-xl shadow-orange-200/50 dark:shadow-none relative overflow-hidden text-white h-[200px] flex flex-col justify-between">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
             
             <div className="relative z-10 flex justify-between items-start">
@@ -283,65 +288,63 @@ export const Debts: React.FC = () => {
 
       {/* --- DEBTS LIST --- */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Sorting Controls */}
-            {activeDebts.length > 0 && !isSelectionMode && (
-            <div className="flex gap-1 mb-6 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-x-auto no-scrollbar">
-            <button
-                onClick={() => setSortBy('priority')}
+        
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-400">
+            <Search size={18} />
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search debts..."
+            className="w-full pl-10 pr-10 py-3 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl text-sm font-medium text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:border-neutral-900 dark:focus:border-neutral-600 focus:outline-none transition-all shadow-sm"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+            >
+              <div className="bg-neutral-100 dark:bg-neutral-800 rounded-full p-1">
+                <X size={12} />
+              </div>
+            </button>
+          )}
+        </div>
+
+        {/* Sorting Controls */}
+        {activeDebts.length > 0 && !isSelectionMode && (
+          <div className="flex gap-1 mb-6 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-x-auto no-scrollbar">
+            {['priority', 'amount', 'progress', 'date'].map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setSortBy(opt as SortOption)}
                 className={`flex-1 min-w-[80px] py-2 text-[10px] font-bold uppercase rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                sortBy === 'priority' 
+                sortBy === opt 
                     ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' 
                     : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
                 }`}
-            >
-                <ListOrdered size={14} />
-                Order
-            </button>
-            <button
-                onClick={() => setSortBy('amount')}
-                className={`flex-1 min-w-[80px] py-2 text-[10px] font-bold uppercase rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                sortBy === 'amount' 
-                    ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' 
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
-                }`}
-            >
-                <BarChart2 size={14} />
-                Bal
-            </button>
-            <button
-                onClick={() => setSortBy('progress')}
-                className={`flex-1 min-w-[80px] py-2 text-[10px] font-bold uppercase rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                sortBy === 'progress' 
-                    ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' 
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
-                }`}
-            >
-                <TrendingUp size={14} />
-                Prog
-            </button>
-            <button
-                onClick={() => setSortBy('date')}
-                className={`flex-1 min-w-[80px] py-2 text-[10px] font-bold uppercase rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                sortBy === 'date' 
-                    ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' 
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
-                }`}
-            >
-                <Calendar size={14} />
-                Date
-            </button>
-            </div>
+              >
+                {opt === 'priority' && <ListOrdered size={14} />}
+                {opt === 'amount' && <BarChart2 size={14} />}
+                {opt === 'progress' && <TrendingUp size={14} />}
+                {opt === 'date' && <Calendar size={14} />}
+                {opt === 'priority' ? 'Order' : opt === 'amount' ? 'Bal' : opt === 'progress' ? 'Prog' : 'Date'}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Active Debt List */}
         <div className="space-y-4 mb-8">
-            {activeDebts.length === 0 ? (
+            {sortedActiveDebts.length === 0 ? (
             <div className="p-12 text-center bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl">
                 <div className="text-neutral-300 dark:text-neutral-700 mb-2">
-                <CheckCircle2 size={32} className="mx-auto text-green-500" />
+                <CheckCircle2 size={32} className="mx-auto text-neutral-200" />
                 </div>
                 <div className="text-neutral-400 dark:text-neutral-500 text-sm font-medium">
-                    {paidDebts.length > 0 ? "All debts paid off!" : "No debts tracked"}
+                    {searchQuery ? "No debts match your search" : "No active debts found"}
                 </div>
             </div>
             ) : (
@@ -359,11 +362,10 @@ export const Debts: React.FC = () => {
                 <div 
                     key={d.id} 
                     className={`group flex gap-3 animate-in slide-in-from-right-4 duration-300 transition-all ${isBeingDragged ? 'opacity-30' : 'opacity-100'} ${isDragTarget ? 'scale-[1.02] translate-x-1' : ''}`}
-                    onDragOver={(e) => sortBy === 'priority' && handleDragOver(e, d.id)}
-                    onDrop={(e) => sortBy === 'priority' && handleDrop(e, d.id)}
+                    onDragOver={(e) => sortBy === 'priority' && !isSelectionMode && handleDragOver(e, d.id)}
+                    onDrop={(e) => sortBy === 'priority' && !isSelectionMode && handleDrop(e, d.id)}
                     onDragEnd={handleDragEnd}
                 >
-                    {/* Reordering Grip Handle OR Selection Checkbox */}
                     <div className="flex flex-col justify-center">
                         {isSelectionMode ? (
                             <button 
@@ -385,7 +387,6 @@ export const Debts: React.FC = () => {
                     </div>
 
                     <div className="flex-1 relative overflow-hidden rounded-2xl touch-pan-y">
-                        {/* Swipe Action Background */}
                         <div className="absolute inset-0 bg-green-500 flex items-center pl-6 transition-opacity duration-200" style={{ opacity: swipeOffset > 20 ? 1 : 0 }}>
                             <div className="flex items-center gap-2 text-white">
                                 <Check size={24} strokeWidth={3} className={`transition-transform duration-200 ${swipeOffset > SWIPE_THRESHOLD ? 'scale-125' : 'scale-100'}`} />
@@ -393,7 +394,6 @@ export const Debts: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Swipeable Card */}
                         <div 
                             onTouchStart={(e) => onTouchStart(e, d.id)}
                             onTouchMove={onTouchMove}
@@ -473,7 +473,7 @@ export const Debts: React.FC = () => {
         </div>
 
         {/* Paid History */}
-        {paidDebts.length > 0 && !isSelectionMode && (
+        {paidDebts.length > 0 && !isSelectionMode && !searchQuery && (
             <div className="mb-8">
                 <button 
                     onClick={() => setIsHistoryMinimized(!isHistoryMinimized)}

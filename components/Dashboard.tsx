@@ -1,18 +1,19 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { ArrowUp, ArrowDown, PiggyBank, Settings, ChevronRight, Repeat } from 'lucide-react';
+import { ArrowUp, ArrowDown, PiggyBank, Settings, ChevronRight, Repeat, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SavingsModal } from './modals/SavingsModal';
 import { SettingsModal } from './modals/SettingsModal';
 
 export const Dashboard: React.FC = () => {
-  const { getBalance, transactions } = useFinance();
+  const { getBalance, transactions, savings } = useFinance();
   const navigate = useNavigate();
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const balance = getBalance(); 
+  const mainBalance = getBalance(); 
+  const secondaryBalance = savings.reduce((sum, s) => sum + s.amount, 0);
   
   // Calculate Monthly Income/Expense
   const now = new Date();
@@ -20,9 +21,7 @@ export const Dashboard: React.FC = () => {
   const currentYear = now.getFullYear();
 
   const currentMonthTransactions = transactions.filter(t => {
-    // Parse YYYY-MM-DD safely
     const [year, month] = t.date.split('-').map(Number);
-    // Month in date string is 1-12, currentMonth is 0-11
     return year === currentYear && (month - 1) === currentMonth;
   });
 
@@ -51,10 +50,17 @@ export const Dashboard: React.FC = () => {
       </header>
 
       <div className="text-center mb-10">
-        <div className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-2">Net Worth</div>
-        <div className={`text-5xl font-light tracking-tighter mb-6 ${balance < 0 ? 'text-red-500' : 'text-neutral-900 dark:text-white'}`}>
-          ${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+        <div className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-2">Spendable Balance</div>
+        <div className={`text-5xl font-light tracking-tighter mb-4 ${mainBalance < 0 ? 'text-red-500' : 'text-neutral-900 dark:text-white'}`}>
+          ${Math.abs(mainBalance).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
         </div>
+        
+        {secondaryBalance > 0 && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full text-neutral-500 dark:text-neutral-400 mb-6 animate-in fade-in zoom-in duration-500">
+             <Wallet size={12} />
+             <span className="text-[10px] font-bold uppercase tracking-widest">Vaults: ${secondaryBalance.toLocaleString()}</span>
+          </div>
+        )}
         
         <div className="flex justify-center gap-8">
           <div className="text-center">
@@ -69,7 +75,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="flex justify-between items-center mb-4 px-1">
-        <div className="text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Recent</div>
+        <div className="text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Recent Transactions</div>
         <button 
           onClick={() => navigate('/transactions')}
           className="text-xs font-medium text-neutral-400 hover:text-neutral-900 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors"
