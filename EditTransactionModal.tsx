@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
 import { Transaction, TransactionType } from '../../types';
-import { Trash2, Repeat, Calendar, Info } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 interface EditTransactionModalProps {
   transaction: Transaction | null;
@@ -12,17 +12,13 @@ interface EditTransactionModalProps {
   onDelete: () => void;
 }
 
-export const EditTransactionModal = ({ transaction, isOpen, onClose, onDelete }: EditTransactionModalProps) => {
-  const { updateTransaction, addRecurringTransaction, categories } = useFinance();
+export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ transaction, isOpen, onClose, onDelete }) => {
+  const { updateTransaction, categories } = useFinance();
   const [type, setType] = useState<TransactionType>('income');
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
-  
-  // Recurring state
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
   const filteredCategories = categories.filter(c => c.type === type);
 
@@ -33,44 +29,24 @@ export const EditTransactionModal = ({ transaction, isOpen, onClose, onDelete }:
       setAmount(transaction.amount.toString());
       setCategory(transaction.category);
       setDate(transaction.date);
-      // Initialize recurring state based on the transaction instance flag
-      setIsRecurring(!!transaction.isRecurring);
-      setFrequency('monthly'); // Default for new recurring rules
     }
-  }, [transaction, isOpen]);
+  }, [transaction]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!transaction || !amount) return;
     
+    // Fallback logic: Description -> Category -> Type
     const finalDesc = desc.trim() || category || (type === 'income' ? 'Income' : 'Expense');
-    const numAmount = parseFloat(amount);
-
-    // If we are making it recurring and it wasn't already, add a recurring rule
-    if (isRecurring && !transaction.isRecurring) {
-      addRecurringTransaction({
-        type,
-        desc: finalDesc,
-        amount: numAmount,
-        category,
-        startDate: date,
-        frequency,
-        // We set lastProcessed to the date of this transaction to prevent 
-        // the recurring logic from immediately creating another one for today
-        lastProcessed: date,
-      });
-    }
 
     updateTransaction({
       ...transaction,
       type,
       desc: finalDesc,
-      amount: numAmount,
+      amount: parseFloat(amount),
       category,
       date,
-      isRecurring // Update the instance flag
     });
-    
     onClose();
   };
 
@@ -80,7 +56,6 @@ export const EditTransactionModal = ({ transaction, isOpen, onClose, onDelete }:
         {['income', 'expense'].map((t) => (
              <button
              key={t}
-             type="button"
              onClick={() => setType(t as TransactionType)}
              className={`flex-1 min-w-[80px] py-3 text-sm font-medium rounded-lg transition-all capitalize ${
                type === t 
@@ -142,54 +117,6 @@ export const EditTransactionModal = ({ transaction, isOpen, onClose, onDelete }:
             className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
             required
           />
-        </div>
-
-        {/* Recurring Toggle Section */}
-        <div className="bg-neutral-50 dark:bg-neutral-800 rounded-xl p-4 border border-neutral-100 dark:border-neutral-800">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
-                    <Repeat size={16} />
-                    <span className="text-sm font-medium">Make this recurring?</span>
-                </div>
-                <div 
-                    onClick={() => setIsRecurring(!isRecurring)}
-                    className={`w-11 h-6 rounded-full flex items-center transition-colors cursor-pointer p-1 ${isRecurring ? 'bg-neutral-900 dark:bg-white' : 'bg-neutral-200 dark:bg-neutral-700'}`}
-                >
-                    <div className={`w-4 h-4 rounded-full bg-white dark:bg-neutral-900 shadow-sm transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
-                </div>
-            </div>
-            
-            {isRecurring && !transaction?.isRecurring && (
-                <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700 animate-in slide-in-from-top-2">
-                    <div className="flex items-center gap-2 mb-3 text-indigo-500">
-                        <Info size={14} />
-                        <p className="text-[10px] font-bold uppercase tracking-widest">Starts from current date</p>
-                    </div>
-                    <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Frequency</label>
-                    <div className="flex gap-2">
-                        {['daily', 'weekly', 'monthly', 'yearly'].map(freq => (
-                            <button
-                                key={freq}
-                                type="button"
-                                onClick={() => setFrequency(freq as any)}
-                                className={`flex-1 py-2 text-xs font-semibold capitalize rounded-lg border transition-all ${
-                                    frequency === freq 
-                                        ? 'bg-white dark:bg-neutral-700 border-neutral-200 dark:border-neutral-600 text-neutral-900 dark:text-white shadow-sm' 
-                                        : 'border-transparent text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                                }`}
-                            >
-                                {freq}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            
-            {isRecurring && transaction?.isRecurring && (
-                <div className="mt-2 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 italic">
-                    * This transaction is already part of a recurring series.
-                </div>
-            )}
         </div>
 
         <button

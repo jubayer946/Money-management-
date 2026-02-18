@@ -1,4 +1,3 @@
-
 export type TransactionType = 'income' | 'expense';
 
 export interface Transaction {
@@ -7,28 +6,28 @@ export interface Transaction {
   desc: string;
   amount: number;
   category: string;
-  date: string; // ISO date string YYYY-MM-DD
+  date: string;
   isRecurring?: boolean;
 }
 
-export interface Saving {
+export interface Category {
   id: string;
   name: string;
-  amount: number;
-}
-
-export interface SavingTransaction {
-  id: string;
-  savingId: string;
-  amount: number;
-  type: 'deposit' | 'withdraw';
-  date: string;
+  type: TransactionType;
+  color: string;
 }
 
 export interface Budget {
   id: string;
   category: string;
   amount: number;
+}
+
+export interface Savings {
+  id: string;
+  name: string;
+  amount: number;
+  goal?: number;
 }
 
 export interface Debt {
@@ -52,11 +51,15 @@ export interface DebtPayment {
   date: string;
 }
 
-export interface Category {
+export interface RecurringTransaction {
   id: string;
-  name: string;
   type: TransactionType;
-  color: string;
+  desc: string;
+  amount: number;
+  category: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  startDate: string;
+  lastProcessed?: string;
 }
 
 export type ChartPeriod = 'day' | 'week' | 'month' | 'year';
@@ -71,32 +74,19 @@ export interface ChartDataPoint {
   year?: number;
 }
 
-export interface RecurringTransaction {
-  id: string;
-  type: TransactionType;
-  desc: string;
-  amount: number;
-  category: string;
-  startDate: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  lastProcessed?: string;
-}
-
 export interface FinanceContextType {
   transactions: Transaction[];
-  savings: Saving[];
-  savingTransactions: SavingTransaction[];
   debts: Debt[];
   debtPayments: DebtPayment[];
   categories: Category[];
   recurringTransactions: RecurringTransaction[];
   budgets: Budget[];
+  savings: Savings[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   updateTransaction: (t: Transaction) => void;
   deleteTransaction: (id: string) => void;
-  addSaving: (s: Omit<Saving, 'id'>) => void;
-  deleteSaving: (id: string) => void;
-  addSavingTransaction: (st: Omit<SavingTransaction, 'id'>) => void;
+  bulkDeleteTransactions: (ids: string[]) => Promise<void>;
+  bulkUpdateTransactions: (updates: Transaction[]) => Promise<void>;
   addDebt: (d: Omit<Debt, 'id'>) => void;
   updateDebt: (d: Debt) => void;
   deleteDebt: (id: string) => void;
@@ -110,6 +100,9 @@ export interface FinanceContextType {
   addBudget: (b: Omit<Budget, 'id'>) => void;
   updateBudget: (b: Budget) => void;
   deleteBudget: (id: string) => void;
+  addSavings: (s: Omit<Savings, 'id'>) => void;
+  updateSavings: (s: Savings) => void;
+  deleteSavings: (id: string) => void;
   getBalance: () => number;
   getIncome: () => number;
   getExpenses: () => number;

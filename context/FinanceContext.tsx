@@ -1,10 +1,19 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Saving, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, SavingTransaction } from '../types';
-import { db } from '../firebaseConfig';
+import { Transaction, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, Savings } from '../types';
+import { db } from './firebaseConfig';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
+
+const stripUndefined = <T extends Record<string, any>>(obj: T): T => {
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+};
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Salary', type: 'income', color: '#10b981' },
@@ -19,43 +28,27 @@ const DEFAULT_CATEGORIES = [
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [savings, setSavings] = useState<Saving[]>([]);
-  const [savingTransactions, setSavingTransactions] = useState<SavingTransaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [savings, setSavings] = useState<Savings[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Initialize data listeners
   useEffect(() => {
     const txRef = ref(db, 'transactions');
-    const savingsRef = ref(db, 'savings');
-    const savingTxRef = ref(db, 'savingTransactions');
     const debtsRef = ref(db, 'debts');
     const debtPaymentsRef = ref(db, 'debtPayments');
     const catsRef = ref(db, 'categories');
     const recurringRef = ref(db, 'recurringTransactions');
     const budgetsRef = ref(db, 'budgets');
+    const savingsRef = ref(db, 'savings');
 
     const unsubTx = onValue(txRef, (snapshot) => {
       const data = snapshot.val();
       const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-      // Sort by date descending
       setTransactions(list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    });
-
-    const unsubSavings = onValue(savingsRef, (snapshot) => {
-      const data = snapshot.val();
-      const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-      setSavings(list);
-    });
-
-    const unsubSavingTx = onValue(savingTxRef, (snapshot) => {
-      const data = snapshot.val();
-      const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-      setSavingTransactions(list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     });
 
     const unsubDebts = onValue(debtsRef, (snapshot) => {
@@ -73,19 +66,9 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const unsubCats = onValue(catsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const list = Object.keys(data).map(key => {
-            const cat = data[key];
-            return { 
-                id: key, 
-                name: cat.name,
-                // Backwards compatibility for old categories
-                type: cat.type || 'expense', 
-                color: cat.color || '#64748b' 
-            };
-        });
+        const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
         setCategories(list);
       } else {
-        // Initialize default categories if none exist
         DEFAULT_CATEGORIES.forEach(c => {
            set(push(ref(db, 'categories')), { name: c.name, type: c.type, color: c.color });
         });
@@ -105,170 +88,113 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       setBudgets(list);
     });
 
+    const unsubSavings = onValue(savingsRef, (snapshot) => {
+      const data = snapshot.val();
+      const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+      setSavings(list);
+    });
+
     return () => {
-      unsubTx();
-      unsubSavings();
-      unsubSavingTx();
-      unsubDebts();
-      unsubDebtPayments();
-      unsubCats();
-      unsubRecurring();
-      unsubBudgets();
+      unsubTx(); unsubDebts(); unsubDebtPayments(); unsubCats(); unsubRecurring(); unsubBudgets(); unsubSavings();
     };
   }, []);
 
-  // Check for recurring transactions
   useEffect(() => {
     if (loading) return;
-
     const checkRecurring = () => {
       const now = new Date();
-      // Use local midnight for comparison to avoid timezone issues
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
       recurringTransactions.forEach(rt => {
-        // Parse startDate safely as local time
         const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
-        
         let nextDue: Date;
-        
-        // Logic: If never processed, start date is the first due date.
-        // Otherwise, calculate next cycle from last processed date.
         if (!rt.lastProcessed) {
             nextDue = startDate;
         } else {
             const [lastYear, lastMonth, lastDay] = rt.lastProcessed.split('-').map(Number);
             const lastProcessed = new Date(lastYear, lastMonth - 1, lastDay);
-            
             nextDue = new Date(lastProcessed);
-            
             if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
             if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
             if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
             if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
         }
-
-        // Compare using timestamps to check if due date is today or in the past
         if (nextDue.getTime() <= today.getTime()) {
-          // Format the date as YYYY-MM-DD local string
           const y = nextDue.getFullYear();
           const m = String(nextDue.getMonth() + 1).padStart(2, '0');
           const d = String(nextDue.getDate()).padStart(2, '0');
           const dueString = `${y}-${m}-${d}`;
-
-          // Add to Firebase with isRecurring flag
           push(ref(db, 'transactions'), {
-            type: rt.type,
-            desc: rt.desc,
-            amount: rt.amount,
-            category: rt.category,
-            date: dueString,
-            isRecurring: true
+            type: rt.type, desc: rt.desc, amount: rt.amount, category: rt.category, date: dueString, isRecurring: true
           });
-          
-          // Update last processed to the due date we just handled
-          update(ref(db, `recurringTransactions/${rt.id}`), {
-            lastProcessed: dueString
-          });
+          update(ref(db, `recurringTransactions/${rt.id}`), { lastProcessed: dueString });
         }
       });
     };
-
     checkRecurring();
   }, [recurringTransactions, loading]);
 
-
-  const addTransaction = (t: Omit<Transaction, 'id'>) => {
-    push(ref(db, 'transactions'), t);
-  };
-
-  const updateTransaction = (t: Transaction) => {
+  const addTransaction = (t: Omit<Transaction, 'id'>) => push(ref(db, 'transactions'), stripUndefined(t));
+  
+  const updateTransaction = async (t: Transaction) => {
     const { id, ...data } = t;
-    update(ref(db, `transactions/${id}`), data);
+    console.log('Updating transaction', id);
+    return update(ref(db, `transactions/${id}`), stripUndefined(data));
   };
 
   const deleteTransaction = (id: string) => {
-    remove(ref(db, `transactions/${id}`));
+    console.log('Deleting transaction', id);
+    return remove(ref(db, `transactions/${id}`));
   };
 
-  const addSaving = (s: Omit<Saving, 'id'>) => {
-    push(ref(db, 'savings'), s);
+  const bulkDeleteTransactions = async (ids: string[]) => {
+    console.log('Bulk deleting IDs:', ids);
+    await Promise.all(ids.map(id => deleteTransaction(id)));
+    console.log('Bulk delete complete');
   };
 
-  const deleteSaving = (id: string) => {
-    remove(ref(db, `savings/${id}`));
+  const bulkUpdateTransactions = async (updatesList: Transaction[]) => {
+    console.log('Bulk updating transactions:', updatesList.length);
+    await Promise.all(updatesList.map(t => updateTransaction(t)));
+    console.log('Bulk update complete');
   };
 
-  const addSavingTransaction = (st: Omit<SavingTransaction, 'id'>) => {
-    push(ref(db, 'savingTransactions'), st);
-    // Update the saving amount
-    const saving = savings.find(s => s.id === st.savingId);
-    if (saving) {
-        const newAmount = st.type === 'deposit' 
-            ? saving.amount + st.amount 
-            : Math.max(0, saving.amount - st.amount);
-        update(ref(db, `savings/${saving.id}`), { amount: newAmount });
-    }
-  };
-
-  const addDebt = (d: Omit<Debt, 'id'>) => {
-    push(ref(db, 'debts'), d);
-  };
-
+  const addDebt = (d: Omit<Debt, 'id'>) => push(ref(db, 'debts'), stripUndefined(d));
   const updateDebt = (d: Debt) => {
     const { id, ...data } = d;
-    update(ref(db, `debts/${id}`), data);
+    update(ref(db, `debts/${id}`), stripUndefined(data));
   };
+  const deleteDebt = (id: string) => remove(ref(db, `debts/${id}`));
+  const addDebtPayment = (dp: Omit<DebtPayment, 'id'>) => push(ref(db, 'debtPayments'), stripUndefined(dp));
 
-  const deleteDebt = (id: string) => {
-    remove(ref(db, `debts/${id}`));
-  };
-  
-  const addDebtPayment = (dp: Omit<DebtPayment, 'id'>) => {
-    push(ref(db, 'debtPayments'), dp);
-  };
-
-  const addCategory = (name: string, type: TransactionType, color: string) => {
-    push(ref(db, 'categories'), { name, type, color });
-  };
-
+  const addCategory = (name: string, type: TransactionType, color: string) => push(ref(db, 'categories'), stripUndefined({ name, type, color }));
   const updateCategory = (c: Category) => {
     const { id, ...data } = c;
-    update(ref(db, `categories/${id}`), data);
+    update(ref(db, `categories/${id}`), stripUndefined(data));
   };
+  const deleteCategory = (id: string) => remove(ref(db, `categories/${id}`));
 
-  const deleteCategory = (id: string) => {
-    remove(ref(db, `categories/${id}`));
-  };
-
-  const addRecurringTransaction = (t: Omit<RecurringTransaction, 'id'>) => {
-    push(ref(db, 'recurringTransactions'), t);
-  };
-
+  const addRecurringTransaction = (t: Omit<RecurringTransaction, 'id'>) => push(ref(db, 'recurringTransactions'), stripUndefined(t));
   const updateRecurringTransaction = (t: RecurringTransaction) => {
     const { id, ...data } = t;
-    update(ref(db, `recurringTransactions/${id}`), data);
+    update(ref(db, `recurringTransactions/${id}`), stripUndefined(data));
   };
+  const deleteRecurringTransaction = (id: string) => remove(ref(db, `recurringTransactions/${id}`));
 
-  const deleteRecurringTransaction = (id: string) => {
-    remove(ref(db, `recurringTransactions/${id}`));
-  };
-
-  const addBudget = (b: Omit<Budget, 'id'>) => {
-    push(ref(db, 'budgets'), b);
-  };
-
+  const addBudget = (b: Omit<Budget, 'id'>) => push(ref(db, 'budgets'), stripUndefined(b));
   const updateBudget = (b: Budget) => {
     const { id, ...data } = b;
-    update(ref(db, `budgets/${id}`), data);
+    update(ref(db, `budgets/${id}`), stripUndefined(data));
   };
+  const deleteBudget = (id: string) => remove(ref(db, `budgets/${id}`));
 
-  const deleteBudget = (id: string) => {
-    remove(ref(db, `budgets/${id}`));
+  const addSavings = (s: Omit<Savings, 'id'>) => push(ref(db, 'savings'), stripUndefined(s));
+  const updateSavings = (s: Savings) => {
+    const { id, ...data } = s;
+    update(ref(db, `savings/${id}`), stripUndefined(data));
   };
+  const deleteSavings = (id: string) => remove(ref(db, `savings/${id}`));
 
-  // Global Net Worth
   const getBalance = () => {
     return transactions.reduce((acc, t) => {
       if (t.type === 'income') return acc + t.amount;
@@ -277,46 +203,19 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     }, 0);
   };
 
-  const getIncome = () => {
-    return transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  };
-
-  const getExpenses = () => {
-    return transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  };
+  const getIncome = () => transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const getExpenses = () => transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
 
   return (
     <FinanceContext.Provider value={{
-      transactions,
-      savings,
-      savingTransactions,
-      debts,
-      debtPayments,
-      categories,
-      recurringTransactions,
-      budgets,
-      addTransaction,
-      updateTransaction,
-      deleteTransaction,
-      addSaving,
-      deleteSaving,
-      addSavingTransaction,
-      addDebt,
-      updateDebt,
-      deleteDebt,
-      addDebtPayment,
-      addCategory,
-      updateCategory,
-      deleteCategory,
-      addRecurringTransaction,
-      updateRecurringTransaction,
-      deleteRecurringTransaction,
-      addBudget,
-      updateBudget,
-      deleteBudget,
-      getBalance,
-      getIncome,
-      getExpenses,
+      transactions, debts, debtPayments, categories, recurringTransactions, budgets, savings,
+      addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactions,
+      addDebt, updateDebt, deleteDebt, addDebtPayment,
+      addCategory, updateCategory, deleteCategory,
+      addRecurringTransaction, updateRecurringTransaction, deleteRecurringTransaction,
+      addBudget, updateBudget, deleteBudget,
+      addSavings, updateSavings, deleteSavings,
+      getBalance, getIncome, getExpenses,
     }}>
       {children}
     </FinanceContext.Provider>
@@ -325,8 +224,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
 export const useFinance = () => {
   const context = useContext(FinanceContext);
-  if (context === undefined) {
-    throw new Error('useFinance must be used within a FinanceProvider');
-  }
+  if (context === undefined) throw new Error('useFinance must be used within a FinanceProvider');
   return context;
 };

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
@@ -13,39 +12,42 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('theme') as Theme;
-        return saved || 'system';
+      const saved = localStorage.getItem('theme') as Theme;
+      return saved || 'system';
     }
     return 'system';
   });
-  
+
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-    
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    const applyTheme = () => {
+      root.classList.remove('light', 'dark');
+      
+      let activeTheme: 'light' | 'dark';
+      if (theme === 'system') {
+        activeTheme = mediaQuery.matches ? 'dark' : 'light';
+      } else {
+        activeTheme = theme;
+      }
 
-  // Listener for system theme changes
-  useEffect(() => {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const handleChange = () => {
-          if (theme === 'system') {
-            const root = window.document.documentElement;
-            root.classList.remove('light', 'dark');
-            root.classList.add(mediaQuery.matches ? 'dark' : 'light');
-          }
-      };
+      root.classList.add(activeTheme);
+      // Update color-scheme to ensure system elements like scrollbars match
+      root.style.setProperty('color-scheme', activeTheme);
+      localStorage.setItem('theme', theme);
+    };
 
-      mediaQuery.addEventListener('change', handleChange);
-      return () => mediaQuery.removeEventListener('change', handleChange);
+    applyTheme();
+
+    const listener = () => {
+      if (theme === 'system') {
+        applyTheme();
+      }
+    };
+
+    mediaQuery.addEventListener('change', listener);
+    return () => mediaQuery.removeEventListener('change', listener);
   }, [theme]);
 
   return (

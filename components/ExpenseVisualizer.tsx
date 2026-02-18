@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 import ZoomPlugin from 'chartjs-plugin-zoom';
@@ -99,63 +98,60 @@ export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, peri
   }, [activeIndex, chartData, total]);
 
   useEffect(() => {
-    if (canvasRef.current) {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
+    if (!canvasRef.current) return;
 
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        chartInstance.current = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: chartData.labels,
-            datasets: [{
-              data: chartData.data,
-              backgroundColor: chartData.backgroundColors,
-              borderWidth: 0,
-              hoverOffset: 20,
-              borderRadius: 20,
-              spacing: 6,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '80%',
-            layout: {
-              padding: 24
-            },
-            animation: {
-              animateScale: true,
-              animateRotate: true
-            },
-            onHover: (event: any, elements: any) => {
-                if (elements && elements.length > 0) {
-                    setActiveIndex(elements[0].index);
-                    if (event.native && event.native.target) {
-                        (event.native.target as HTMLElement).style.cursor = 'pointer';
-                    }
-                } else {
-                    setActiveIndex(null);
-                    if (event.native && event.native.target) {
-                        (event.native.target as HTMLElement).style.cursor = 'default';
-                    }
+    const ctx = canvasRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: chartData.labels,
+        datasets: [{
+          data: chartData.data,
+          backgroundColor: chartData.backgroundColors,
+          borderWidth: 0,
+          hoverOffset: 20,
+          borderRadius: 20,
+          spacing: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '80%',
+        layout: {
+          padding: 24
+        },
+        animation: {
+          animateScale: true,
+          animateRotate: true
+        },
+        onHover: (event: any, elements: any) => {
+            if (elements && elements.length > 0) {
+                setActiveIndex(elements[0].index);
+                if (event.native && event.native.target) {
+                    (event.native.target as HTMLElement).style.cursor = 'pointer';
                 }
-            },
-            plugins: {
-              legend: { display: false },
-              tooltip: { enabled: false } // Disable native tooltip in favor of center display
+            } else {
+                setActiveIndex(null);
+                if (event.native && event.native.target) {
+                    (event.native.target as HTMLElement).style.cursor = 'default';
+                }
             }
-          }
-        });
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        }
       }
-    }
+    });
+
+    chartInstance.current = chart;
 
     return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
+      chart.destroy();
+      chartInstance.current = null;
     };
   }, [chartData]);
 
@@ -187,14 +183,14 @@ export const FinanceVisualizer: React.FC<FinanceVisualizerProps> = ({ type, peri
                     {activeItem.percentage}%
                  </div>
                  <div className="text-sm font-semibold text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-3 py-1 rounded-full">
-                    ${activeItem.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {activeItem.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                  </div>
               </div>
            ) : (
               <div className="animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center">
                  <div className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-1">Total</div>
                  <div className={`text-3xl font-bold tracking-tight ${type === 'income' ? 'text-emerald-600 dark:text-emerald-500' : 'text-neutral-900 dark:text-white'}`}>
-                    ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                  </div>
               </div>
            )}

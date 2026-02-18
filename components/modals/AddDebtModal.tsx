@@ -1,15 +1,15 @@
-
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
 import { ChevronDown, ChevronRight, ListOrdered } from 'lucide-react';
+import { Debt } from '../../types';
 
 interface AddDebtModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) => {
+export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
   const { debts, addDebt, categories } = useFinance();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -45,19 +45,18 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
     // Default priority is end of list
     const finalPriority = !isNaN(customPriority) ? customPriority : debts.length;
 
-    const debtData: any = {
+    const debtData: Omit<Debt, 'id'> = {
         name,
         amount: currentAmt,
         initialAmount: initAmt,
         date: date,
-        priority: finalPriority
+        priority: finalPriority,
+        interestRate: !isNaN(intRate) ? intRate : undefined,
+        minimumPayment: !isNaN(minPay) ? minPay : undefined,
+        dueDate: dueDate || undefined,
+        notes: notes || undefined,
+        category: category || undefined
     };
-
-    if (!isNaN(intRate)) debtData.interestRate = intRate;
-    if (!isNaN(minPay)) debtData.minimumPayment = minPay;
-    if (dueDate) debtData.dueDate = dueDate;
-    if (notes) debtData.notes = notes;
-    if (category) debtData.category = category;
 
     addDebt(debtData);
     
@@ -94,7 +93,6 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
         <div>
           <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Current Balance</label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
             <input
               type="number"
               value={amount}
@@ -102,7 +100,7 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
               placeholder="0.00"
               step="0.01"
               min="0.01"
-              className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
               required
             />
           </div>
@@ -135,14 +133,13 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                     <div>
                         <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Original Amount</label>
                         <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
                             <input
                                 type="number"
                                 value={initialAmount}
                                 onChange={(e) => setInitialAmount(e.target.value)}
                                 placeholder="Leave blank if same as current"
                                 step="0.01"
-                                className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
                             />
                         </div>
                     </div>
@@ -162,14 +159,13 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                         <div>
                             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Min Payment</label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
                                 <input
                                     type="number"
                                     value={minimumPayment}
                                     onChange={(e) => setMinimumPayment(e.target.value)}
                                     placeholder="0"
                                     step="0.01"
-                                    className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+                                    className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
                                 />
                             </div>
                         </div>
@@ -209,10 +205,9 @@ export const AddDebtModal: React.FC<AddDebtModalProps> = ({ isOpen, onClose }) =
                      <div>
                         <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Due Date</label>
                         <input
-                            type="text"
+                            type="date"
                             value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
-                            placeholder="e.g., 5th of month"
                             className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
                         />
                      </div>

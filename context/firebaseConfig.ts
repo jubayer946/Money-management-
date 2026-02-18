@@ -5,8 +5,7 @@ import { getDatabase } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyD-48nBH2MinrPfHtfOz0CQKBsgo47IwG0",
   authDomain: "money-2-f27bb.firebaseapp.com",
-  // Inferred database URL for Realtime Database based on project ID
-  databaseURL: "https://money-2-f27bb-default-rtdb.firebaseio.com", 
+  databaseURL: "https://money-2-f27bb-default-rtdb.firebaseio.com",
   projectId: "money-2-f27bb",
   storageBucket: "money-2-f27bb.firebasestorage.app",
   messagingSenderId: "449712413248",

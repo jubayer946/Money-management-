@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react';
 
 interface BudgetModalProps {
   isOpen: boolean;
+  // Fix: onClose should be a function, not void
   onClose: () => void;
   budget?: Budget | null;
 }
@@ -48,7 +49,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({ isOpen, onClose, budge
   };
 
   const handleDelete = () => {
-    if (budget) {
+    if (budget && window.confirm('Are you sure you want to remove this spending limit?')) {
       deleteBudget(budget.id);
       onClose();
     }
@@ -76,7 +77,6 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({ isOpen, onClose, budge
         <div>
           <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Monthly Limit</label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
             <input
               type="number"
               value={amount}
@@ -84,7 +84,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({ isOpen, onClose, budge
               placeholder="0.00"
               step="1"
               min="0"
-              className="w-full p-4 pl-8 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
               required
             />
           </div>

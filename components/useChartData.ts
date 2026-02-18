@@ -1,3 +1,4 @@
+
 import { useMemo } from 'react';
 import { Transaction, ChartPeriod, ChartDataPoint } from '../types';
 
@@ -5,62 +6,75 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
   return useMemo(() => {
     const data: ChartDataPoint[] = [];
     
+    // Filter out transfers for Income/Expense charts to avoid skewing data
+    // Note: For pure Net Worth, transfers within own accounts cancel out, but we filter here to keep the income/expense lines clean.
+    const relevantTransactions = transactions;
+    
     // Determine the start (cutoff) and end date for the chart period
     const startDate = new Date(currentDate);
     const endDate = new Date(currentDate);
 
     if (period === 'day') {
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
+      startDate.setHours(0,0,0,0);
+      endDate.setHours(23,59,59,999);
     } else if (period === 'week') {
       // Set to Sunday of this week
       const day = startDate.getDay();
       const diff = startDate.getDate() - day;
       startDate.setDate(diff);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setHours(0,0,0,0);
       
       // End date is Saturday
       endDate.setDate(startDate.getDate() + 6);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setHours(23,59,59,999);
     } else if (period === 'month') {
       startDate.setDate(1);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setHours(0,0,0,0);
       
       endDate.setMonth(endDate.getMonth() + 1);
-      endDate.setDate(0); // Last day of previous month
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setDate(0); // Last day of previous month (which is the current month in calculation)
+      endDate.setHours(23,59,59,999);
     } else if (period === 'year') {
       startDate.setMonth(0, 1);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setHours(0,0,0,0);
       
       endDate.setMonth(11, 31);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setHours(23,59,59,999);
     }
 
     // Calculate initial balance (sum of all transactions BEFORE the start date)
-    let initialBalance = transactions.reduce((acc, t) => {
+    let initialBalance = 0;
+    
+    transactions.forEach(t => {
       const tDate = new Date(t.date);
+      // We compare purely based on the date string to avoid timezone complexity for "start of day" logic
+      // essentially: if tDate < startDate
+      const tTime = tDate.getTime();
+      // Adjust strictly for comparison
       const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
       const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
 
       if (adjustedDate < startDate) {
-        if (t.type === 'income') return acc + t.amount;
-        if (t.type === 'expense') return acc - t.amount;
+        if (t.type === 'income') {
+          initialBalance += t.amount;
+        } else if (t.type === 'expense') {
+          initialBalance -= t.amount;
+        }
       }
-      return acc;
-    }, 0);
+    });
 
     if (period === 'day') {
       // 0-23 hours
       for (let i = 0; i < 24; i++) {
         data.push({ label: `${i}:00`, income: 0, expense: 0, balance: 0 });
       }
-      transactions.forEach(t => {
+      relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
         
         if (adjustedDate >= startDate && adjustedDate <= endDate) {
+           // Simply distribute to middle of day as we don't have time on transactions
            if (t.type === 'income') data[12].income += t.amount;
            else if (t.type === 'expense') data[12].expense += t.amount;
         }
@@ -80,7 +94,7 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
         });
       }
       
-      transactions.forEach(t => {
+      relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
@@ -89,8 +103,8 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
             const dateStr = adjustedDate.toDateString();
             const point = data.find(p => p.date === dateStr);
             if (point) {
-              if (t.type === 'income') point.income += t.amount;
-              else if (t.type === 'expense') point.expense += t.amount;
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
             }
         }
       });
@@ -111,7 +125,7 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
         });
       }
 
-      transactions.forEach(t => {
+      relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
@@ -120,8 +134,8 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
             const dateStr = adjustedDate.toDateString();
             const point = data.find(p => p.date === dateStr);
             if (point) {
-              if (t.type === 'income') point.income += t.amount;
-              else if (t.type === 'expense') point.expense += t.amount;
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
             }
         }
       });
@@ -139,7 +153,7 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
         });
       }
       
-      transactions.forEach(t => {
+      relevantTransactions.forEach(t => {
         const tDate = new Date(t.date);
         const userTimezoneOffset = tDate.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(tDate.getTime() + userTimezoneOffset);
@@ -147,8 +161,8 @@ export const useChartData = (transactions: Transaction[], period: ChartPeriod, c
         if (adjustedDate >= startDate && adjustedDate <= endDate) {
             const point = data.find(p => p.month === adjustedDate.getMonth() && p.year === adjustedDate.getFullYear());
             if (point) {
-              if (t.type === 'income') point.income += t.amount;
-              else if (t.type === 'expense') point.expense += t.amount;
+            if (t.type === 'income') point.income += t.amount;
+            else if (t.type === 'expense') point.expense += t.amount;
             }
         }
       });

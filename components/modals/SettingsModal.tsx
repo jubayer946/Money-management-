@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Modal } from '../ui/Modal';
-import { Trash2, Edit2, Check, X, Plus, Moon, Sun, Monitor, Circle, Repeat, ArrowUp, ArrowDown, Settings, List, Save } from 'lucide-react';
+import { Trash2, Edit2, Check, X, Plus, Moon, Sun, Monitor, Repeat, ArrowUp, ArrowDown, Settings, List, Save } from 'lucide-react';
 import { TransactionType, RecurringTransaction } from '../../types';
 
 interface SettingsModalProps {
@@ -181,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
       {/* --- GENERAL TAB --- */}
       {activeTab === 'general' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-24">
             <h3 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-3">Appearance</h3>
             <div className="grid grid-cols-3 gap-2 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl">
                 <button
@@ -228,7 +227,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
       {/* --- CATEGORIES TAB --- */}
       {activeTab === 'categories' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-24">
             {/* Category Type Toggle */}
             <div className="flex gap-2 mb-4 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
             <button
@@ -286,7 +285,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
 
             {/* Categories List */}
-            <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
+            <div className="max-h-60 overflow-y-auto pr-2 space-y-2 no-scrollbar">
                 {filteredCategories.length === 0 ? (
                 <div className="text-center py-8 text-neutral-400 text-sm">No {activeCategoryType} categories found</div>
                 ) : (
@@ -330,7 +329,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         <span className="flex-1 font-medium text-neutral-900 dark:text-neutral-200 text-sm">{c.name}</span>
                         <button 
                             onClick={() => startEditCategory(c.id, c.name, c.color)}
-                            className="p-2 text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all"
+                            className="p-2 text-neutral-400 hover:text-neutral-900 dark:hover:white hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all"
                         >
                             <Edit2 size={16} />
                         </button>
@@ -351,7 +350,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
       {/* --- RECURRING TAB --- */}
       {activeTab === 'recurring' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-24">
              {editingRecurring ? (
                  <div className="space-y-4">
                      <h3 className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Edit Recurring Rule</h3>
@@ -412,7 +411,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                      </div>
                  </div>
              ) : (
-                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 no-scrollbar">
                      {recurringTransactions.length === 0 ? (
                          <div className="text-center py-12 text-neutral-400">
                              <Repeat size={32} className="mx-auto mb-2 opacity-20" />
