@@ -129,6 +129,7 @@ export const useDashboardData = (): DashboardData => {
       .map(rt => {
         const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
+        const step = rt.interval && rt.interval > 0 ? rt.interval : 1;
 
         let nextDue: Date;
 
@@ -141,10 +142,10 @@ export const useDashboardData = (): DashboardData => {
           const lastProcessed = new Date(lastYear, lastMonth - 1, lastDay);
 
           nextDue = new Date(lastProcessed);
-          if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
-          else if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
-          else if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
-          else if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
+          if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + step);
+          else if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7 * step);
+          else if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + step);
+          else if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + step);
         }
 
         const diffTime = nextDue.getTime() - today.getTime();

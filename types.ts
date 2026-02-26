@@ -59,7 +59,8 @@ export interface RecurringTransaction {
   category: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
   startDate: string;
-  lastProcessed?: string;
+  lastProcessed?: string | null;
+  interval?: number;
 }
 
 export type ChartPeriod = 'day' | 'week' | 'month' | 'year';

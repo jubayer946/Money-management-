@@ -210,6 +210,7 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
   
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [interval, setInterval] = useState<number | ''>('');
   
   const [calcAmount, setCalcAmount] = useState('');
 
@@ -242,6 +243,7 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
       setCalcAmount('');
       setIsRecurring(false);
       setFrequency('monthly');
+      setInterval('');
       setInitialAmount('');
       setInterestRate('');
       setMinimumPayment('');
@@ -441,6 +443,7 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
         const finalDesc = desc.trim() || category || (transactionTab === 'income' ? 'Income' : 'Expense');
 
         if (isRecurring) {
+            const safeInterval = typeof interval === 'number' && interval > 0 ? interval : 1;
             addRecurringTransaction({
                 type: transactionTab,
                 desc: finalDesc,
@@ -448,7 +451,9 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
                 category,
                 startDate: date,
                 frequency,
-            });
+                interval: safeInterval,
+                lastProcessed: null,
+            } as any);
         } else {
             addTransaction({
                 type: transactionTab,
@@ -605,8 +610,10 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
                 
                 {isRecurring && (
                     <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
-                        <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Frequency</label>
-                        <div className="flex gap-2">
+                        <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+                            Frequency
+                        </label>
+                        <div className="flex gap-2 mb-3">
                              {['daily', 'weekly', 'monthly', 'yearly'].map(freq => (
                                  <button
                                     key={freq}
@@ -621,6 +628,44 @@ export const AddTransactionModal = ({ isOpen, onClose }: AddTransactionModalProp
                                     {freq}
                                  </button>
                              ))}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-[0.18em]">
+                                Every
+                            </span>
+                            <input
+                                type="number"
+                                min={1}
+                                value={interval}
+                                placeholder="1"
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '') {
+                                        setInterval('');
+                                        return;
+                                    }
+                                    const v = parseInt(value, 10);
+                                    if (!isNaN(v)) {
+                                        setInterval(v);
+                                    }
+                                }}
+                                onBlur={() => {
+                                    if (interval === '' || (typeof interval === 'number' && interval < 1)) {
+                                        setInterval(1);
+                                    }
+                                }}
+                                className="w-14 h-8 px-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg text-[11px] font-medium text-neutral-900 dark:text-white text-center"
+                            />
+                            <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-[0.18em]">
+                                {frequency === 'daily'
+                                    ? 'DAY(S)'
+                                    : frequency === 'weekly'
+                                    ? 'WEEK(S)'
+                                    : frequency === 'monthly'
+                                    ? 'MONTH(S)'
+                                    : 'YEAR(S)'}
+                            </span>
                         </div>
                     </div>
                 )}

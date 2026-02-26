@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useDashboardData, UpcomingRecurring } from '../hooks/useDashboardData';
-import { Settings, Tag, TrendingUp, TrendingDown, Clock, Trash2, Send, Check, X } from 'lucide-react';
+import { Settings, Tag, TrendingUp, TrendingDown, Clock, Trash2, Send, Check, X, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SettingsModal } from './modals/SettingsModal';
 import { CategoriesModal } from './modals/CategoriesModal';
@@ -66,20 +66,24 @@ export const Dashboard = () => {
     return `${Math.abs(item.diffDays)}d late`;
   };
 
-  const handlePayRecurring = async (item: UpcomingRecurring) => {
-    const today = new Date();
-    const todayStr = formatDateYMD(today);
-    const dueStr = formatDateYMD(item.nextDue);
+  // One place for the core pay logic
+  const payRecurringWithDate = async (item: UpcomingRecurring, payDateStr: string) => {
+    const payDate = new Date(payDateStr);
+    const payIso = formatDateYMD(payDate);
+    const dueStr = formatDateYMD(item.nextDue); // scheduled due date
 
+    // 1) Create the real transaction using selected date
     await addTransaction({
       type: item.type,
       desc: item.desc,
       amount: item.amount,
       category: item.category,
-      date: todayStr,
+      date: payIso,
       isRecurring: true,
     });
 
+    // 2) Mark this due as processed at its scheduled due date,
+    //    so the next one stays on the same schedule (monthly/weekly/etc).
     await updateRecurringTransaction({
       id: item.id,
       type: item.type,
@@ -89,7 +93,13 @@ export const Dashboard = () => {
       startDate: item.startDate,
       frequency: item.frequency,
       lastProcessed: dueStr,
-    });
+    } as any);
+  };
+
+  // Quick pay = pay today
+  const handleQuickPay = (item: UpcomingRecurring) => {
+    const todayStr = formatDateYMD(new Date());
+    return payRecurringWithDate(item, todayStr);
   };
 
   const handleDelayRecurring = async (item: UpcomingRecurring) => {
@@ -104,8 +114,12 @@ export const Dashboard = () => {
       startDate: item.startDate,
       frequency: item.frequency,
       lastProcessed: dueStr,
-    });
+    } as any);
   };
+
+  // For inline custom-date UI
+  const [customPayForId, setCustomPayForId] = useState<string | null>(null);
+  const [customPayDate, setCustomPayDate] = useState<string>('');
 
   // Money Journal State
   const [notes, setNotes] = useState<Note[]>([]);
@@ -286,7 +300,6 @@ export const Dashboard = () => {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                {/* Tiny header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Clock size={10} className="text-neutral-300 dark:text-neutral-600" />
@@ -294,7 +307,6 @@ export const Dashboard = () => {
                       Upcoming
                     </span>
                   </div>
-
                   {upcomingRecurring.length > 2 && (
                     <span className="text-[8px] text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.16em]">
                       Scroll
@@ -302,60 +314,101 @@ export const Dashboard = () => {
                   )}
                 </div>
 
-                {/* Content */}
                 {upcomingRecurring.length === 0 ? (
                   <span className="text-[10px] text-neutral-300 dark:text-neutral-600">
                     No recurring yet
                   </span>
                 ) : (
                   <div
-                    className={`mt-0.5 space-y-2 ${
-                      upcomingRecurring.length > 2
-                        ? 'max-h-[80px] overflow-y-auto pr-1 -mr-1' // Adjusted height for buttons
-                        : ''
+                    className={`mt-0.5 space-y-1 ${
+                      upcomingRecurring.length > 2 ? 'max-h-[60px] overflow-y-auto pr-1 -mr-1' : ''
                     }`}
                   >
-                    {upcomingRecurring.map(item => (
-                      <div
-                        key={item.id}
-                        className="flex justify-between items-center text-[10px] group"
-                      >
-                        <div className="flex flex-col items-start truncate max-w-[50%]">
-                          <span className="text-neutral-600 dark:text-neutral-300 truncate w-full">
-                            {item.desc}
-                          </span>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span className="font-semibold text-neutral-900 dark:text-white">
-                              {formatCurrency(item.amount)}
-                            </span>
-                            <span
-                              className={`text-[8px] uppercase tracking-[0.16em] ${
-                                item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'
-                              }`}
-                            >
-                              {getDueLabel(item)}
-                            </span>
-                          </div>
-                        </div>
+                    {upcomingRecurring.map(item => {
+                      const isCustomOpen = customPayForId === item.id;
+                      return (
+                        <div key={item.id} className="text-[10px]">
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col">
+                              <span className="text-neutral-600 dark:text-neutral-300 truncate max-w-[120px]">
+                                {item.desc}
+                              </span>
+                              <span
+                                className={`text-[8px] uppercase tracking-[0.16em] ${
+                                  item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'
+                                }`}
+                              >
+                                {getDueLabel(item)}
+                              </span>
+                            </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handlePayRecurring(item)}
-                            className="p-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
-                            title="Pay Now"
-                          >
-                            <Check size={10} />
-                          </button>
-                          <button
-                            onClick={() => handleDelayRecurring(item)}
-                            className="p-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                            title="Skip this month"
-                          >
-                            <X size={10} />
-                          </button>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-neutral-900 dark:text-white">
+                                {formatCurrency(item.amount)}
+                              </span>
+
+                              <div className="flex items-center gap-1">
+                                {/* Quick Pay (today) */}
+                                <button
+                                  onClick={() => handleQuickPay(item)}
+                                  className="w-6 h-6 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-[9px]"
+                                  aria-label="Pay today"
+                                >
+                                  ✓
+                                </button>
+
+                                {/* Custom date pay toggle */}
+                                <button
+                                  onClick={() => {
+                                    if (isCustomOpen) {
+                                      setCustomPayForId(null);
+                                    } else {
+                                      setCustomPayForId(item.id);
+                                      setCustomPayDate(formatDateYMD(new Date()));
+                                    }
+                                  }}
+                                  className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-400 dark:text-neutral-500 flex items-center justify-center"
+                                  aria-label="Pay with custom date"
+                                >
+                                  <Calendar size={10} />
+                                </button>
+
+                                {/* Skip this period */}
+                                <button
+                                  onClick={() => handleDelayRecurring(item)}
+                                  className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-400 dark:text-neutral-500 flex items-center justify-center text-[9px]"
+                                  aria-label="Skip this period"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Inline custom date picker */}
+                          {isCustomOpen && (
+                            <div className="mt-1 flex items-center justify-end gap-2 text-[9px]">
+                              <input
+                                type="date"
+                                value={customPayDate}
+                                onChange={e => setCustomPayDate(e.target.value)}
+                                className="h-6 px-1 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-[9px]"
+                              />
+                              <button
+                                onClick={async () => {
+                                  if (!customPayDate) return;
+                                  await payRecurringWithDate(item, customPayDate);
+                                  setCustomPayForId(null);
+                                }}
+                                className="px-2 h-6 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold tracking-[0.16em] uppercase"
+                              >
+                                Pay
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

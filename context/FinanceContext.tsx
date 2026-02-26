@@ -108,6 +108,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       recurringTransactions.forEach(rt => {
         const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
+        const step = rt.interval && rt.interval > 0 ? rt.interval : 1;
         let nextDue: Date;
         if (!rt.lastProcessed) {
             nextDue = startDate;
@@ -115,10 +116,10 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
             const [lastYear, lastMonth, lastDay] = rt.lastProcessed.split('-').map(Number);
             const lastProcessed = new Date(lastYear, lastMonth - 1, lastDay);
             nextDue = new Date(lastProcessed);
-            if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
-            if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
-            if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
-            if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
+            if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + step);
+            if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7 * step);
+            if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + step);
+            if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + step);
         }
         if (nextDue.getTime() <= today.getTime()) {
           const y = nextDue.getFullYear();
