@@ -231,31 +231,64 @@ export const Dashboard = () => {
                 </div>
               </div>
 
-              {upcomingRecurring.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <Clock size={12} className="text-neutral-300 dark:text-neutral-600" />
-                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">Upcoming</span>
+              <div className="flex flex-col gap-1.5">
+                {/* Tiny header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={10} className="text-neutral-300 dark:text-neutral-600" />
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-[0.18em]">
+                      Upcoming
+                    </span>
                   </div>
-                  <div className="space-y-2.5">
+
+                  {upcomingRecurring.length > 2 && (
+                    <span className="text-[8px] text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.16em]">
+                      Scroll
+                    </span>
+                  )}
+                </div>
+
+                {/* Content */}
+                {upcomingRecurring.length === 0 ? (
+                  <span className="text-[10px] text-neutral-300 dark:text-neutral-600">
+                    No recurring yet
+                  </span>
+                ) : (
+                  <div
+                    className={`mt-0.5 space-y-1 ${
+                      upcomingRecurring.length > 2
+                        ? 'max-h-[60px] overflow-y-auto pr-1 -mr-1' // ≈2 rows, scroll for more
+                        : ''
+                    }`}
+                  >
                     {upcomingRecurring.map(item => (
-                      <div key={item.id} className="flex justify-between items-center">
-                        <div className="flex flex-col items-start">
-                          <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">{item.desc}</span>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                           <span className="text-[11px] font-black text-neutral-900 dark:text-white">{formatCurrency(item.amount)}</span>
-                           <span className="text-neutral-300 dark:text-neutral-700 font-light text-[11px]">·</span>
-                           <span className={`text-[9px] font-black uppercase tracking-widest ${item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'}`}>
-                              {item.diffDays === 0 ? 'Today' : `in ${item.diffDays}d`}
-                           </span>
+                      <div
+                        key={item.id}
+                        className="flex justify-between items-baseline text-[10px]"
+                      >
+                        <span className="text-neutral-600 dark:text-neutral-300 truncate max-w-[55%]">
+                          {item.desc}
+                        </span>
+
+                        <div className="flex items-baseline gap-1">
+                          <span className="font-semibold text-neutral-900 dark:text-white">
+                            {formatCurrency(item.amount)}
+                          </span>
+                          <span
+                            className={`text-[9px] uppercase tracking-[0.16em] ${
+                              item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'
+                            }`}
+                          >
+                            {item.diffDays === 0 ? 'Today' : `in ${item.diffDays}d`}
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="w-full h-px bg-neutral-100 dark:bg-neutral-800" />
-                </div>
-              )}
+                )}
+
+                <div className="w-full h-px bg-neutral-100 dark:bg-neutral-800 mt-1" />
+              </div>
             </div>
           </div>
         </div>

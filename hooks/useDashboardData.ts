@@ -152,7 +152,7 @@ export const useDashboardData = (): DashboardData => {
       
       return { ...rt, nextDue, diffDays };
     })
-    .filter(item => item.diffDays >= 0 && item.diffDays <= 7) // Next 7 days
+    .filter(item => item.diffDays >= 0) // show all future upcoming
     .sort((a, b) => a.diffDays - b.diffDays);
 
     return { 
