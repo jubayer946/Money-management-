@@ -125,35 +125,36 @@ export const useDashboardData = (): DashboardData => {
       .slice(0, 5);
 
     // Upcoming Recurring Payments Logic
-    const upcoming = (recurringTransactions || []).map(rt => {
-      const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
-      const startDate = new Date(startYear, startMonth - 1, startDay);
-      
-      let nextDue: Date;
-      if (!rt.lastProcessed) {
-        nextDue = new Date(startDate);
-        while (nextDue < today) {
+    const upcoming = (recurringTransactions || [])
+      .map(rt => {
+        const [startYear, startMonth, startDay] = rt.startDate.split('-').map(Number);
+        const startDate = new Date(startYear, startMonth - 1, startDay);
+
+        let nextDue: Date;
+
+        if (!rt.lastProcessed) {
+          // First ever due = startDate
+          nextDue = startDate;
+        } else {
+          // Next due = lastProcessed + frequency
+          const [lastYear, lastMonth, lastDay] = rt.lastProcessed.split('-').map(Number);
+          const lastProcessed = new Date(lastYear, lastMonth - 1, lastDay);
+
+          nextDue = new Date(lastProcessed);
           if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
           else if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
           else if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
           else if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
         }
-      } else {
-        const [lastYear, lastMonth, lastDay] = rt.lastProcessed.split('-').map(Number);
-        nextDue = new Date(lastYear, lastMonth - 1, lastDay);
-        if (rt.frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1);
-        else if (rt.frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7);
-        else if (rt.frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1);
-        else if (rt.frequency === 'yearly') nextDue.setFullYear(nextDue.getFullYear() + 1);
-      }
 
-      const diffTime = nextDue.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      return { ...rt, nextDue, diffDays };
-    })
-    .filter(item => item.diffDays >= 0) // show all future upcoming
-    .sort((a, b) => a.diffDays - b.diffDays);
+        const diffTime = nextDue.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return { ...rt, nextDue, diffDays };
+      })
+      // Show things that are up to 10 days late, and anything in the future
+      .filter(item => item.diffDays >= -10)
+      .sort((a, b) => a.diffDays - b.diffDays);
 
     return { 
       income: inc, 

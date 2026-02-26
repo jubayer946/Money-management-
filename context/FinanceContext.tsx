@@ -99,6 +99,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
   }, []);
 
+  /* 
   useEffect(() => {
     if (loading) return;
     const checkRecurring = () => {
@@ -133,6 +134,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
     checkRecurring();
   }, [recurringTransactions, loading]);
+  */
 
   const addTransaction = (t: Omit<Transaction, 'id'>) => push(ref(db, 'transactions'), stripUndefined(t));
   

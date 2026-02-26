@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { useDashboardData } from '../hooks/useDashboardData';
-import { Settings, Tag, TrendingUp, TrendingDown, Clock, Trash2, Send } from 'lucide-react';
+import { useDashboardData, UpcomingRecurring } from '../hooks/useDashboardData';
+import { Settings, Tag, TrendingUp, TrendingDown, Clock, Trash2, Send, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SettingsModal } from './modals/SettingsModal';
 import { CategoriesModal } from './modals/CategoriesModal';
@@ -34,7 +34,7 @@ const ComparisonBadge = ({ percent, trend, isGood }: { percent: number; trend: '
 };
 
 export const Dashboard = () => {
-  const { categories } = useFinance();
+  const { categories, addTransaction, updateRecurringTransaction } = useFinance();
   const { 
     mainBalance, 
     income, 
@@ -52,6 +52,60 @@ export const Dashboard = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const formatDateYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const getDueLabel = (item: UpcomingRecurring) => {
+    if (item.diffDays === 0) return 'Today';
+    if (item.diffDays > 0) return `in ${item.diffDays}d`;
+    return `${Math.abs(item.diffDays)}d late`;
+  };
+
+  const handlePayRecurring = async (item: UpcomingRecurring) => {
+    const today = new Date();
+    const todayStr = formatDateYMD(today);
+    const dueStr = formatDateYMD(item.nextDue);
+
+    await addTransaction({
+      type: item.type,
+      desc: item.desc,
+      amount: item.amount,
+      category: item.category,
+      date: todayStr,
+      isRecurring: true,
+    });
+
+    await updateRecurringTransaction({
+      id: item.id,
+      type: item.type,
+      desc: item.desc,
+      amount: item.amount,
+      category: item.category,
+      startDate: item.startDate,
+      frequency: item.frequency,
+      lastProcessed: dueStr,
+    });
+  };
+
+  const handleDelayRecurring = async (item: UpcomingRecurring) => {
+    const dueStr = formatDateYMD(item.nextDue);
+
+    await updateRecurringTransaction({
+      id: item.id,
+      type: item.type,
+      desc: item.desc,
+      amount: item.amount,
+      category: item.category,
+      startDate: item.startDate,
+      frequency: item.frequency,
+      lastProcessed: dueStr,
+    });
+  };
 
   // Money Journal State
   const [notes, setNotes] = useState<Note[]>([]);
@@ -255,32 +309,50 @@ export const Dashboard = () => {
                   </span>
                 ) : (
                   <div
-                    className={`mt-0.5 space-y-1 ${
+                    className={`mt-0.5 space-y-2 ${
                       upcomingRecurring.length > 2
-                        ? 'max-h-[60px] overflow-y-auto pr-1 -mr-1' // ≈2 rows, scroll for more
+                        ? 'max-h-[80px] overflow-y-auto pr-1 -mr-1' // Adjusted height for buttons
                         : ''
                     }`}
                   >
                     {upcomingRecurring.map(item => (
                       <div
                         key={item.id}
-                        className="flex justify-between items-baseline text-[10px]"
+                        className="flex justify-between items-center text-[10px] group"
                       >
-                        <span className="text-neutral-600 dark:text-neutral-300 truncate max-w-[55%]">
-                          {item.desc}
-                        </span>
+                        <div className="flex flex-col items-start truncate max-w-[50%]">
+                          <span className="text-neutral-600 dark:text-neutral-300 truncate w-full">
+                            {item.desc}
+                          </span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="font-semibold text-neutral-900 dark:text-white">
+                              {formatCurrency(item.amount)}
+                            </span>
+                            <span
+                              className={`text-[8px] uppercase tracking-[0.16em] ${
+                                item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'
+                              }`}
+                            >
+                              {getDueLabel(item)}
+                            </span>
+                          </div>
+                        </div>
 
-                        <div className="flex items-baseline gap-1">
-                          <span className="font-semibold text-neutral-900 dark:text-white">
-                            {formatCurrency(item.amount)}
-                          </span>
-                          <span
-                            className={`text-[9px] uppercase tracking-[0.16em] ${
-                              item.diffDays <= 2 ? 'text-red-500' : 'text-neutral-400'
-                            }`}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handlePayRecurring(item)}
+                            className="p-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+                            title="Pay Now"
                           >
-                            {item.diffDays === 0 ? 'Today' : `in ${item.diffDays}d`}
-                          </span>
+                            <Check size={10} />
+                          </button>
+                          <button
+                            onClick={() => handleDelayRecurring(item)}
+                            className="p-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                            title="Skip this month"
+                          >
+                            <X size={10} />
+                          </button>
                         </div>
                       </div>
                     ))}
