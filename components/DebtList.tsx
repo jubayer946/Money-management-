@@ -3,8 +3,9 @@ import {
   Edit2,
   Trash2,
   Check,
-  XCircle,
   GripVertical,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { Debt } from '../types';
 import type { SortOption } from './debtTypes';
@@ -48,6 +49,16 @@ export const DebtList: React.FC<DebtListProps> = ({
 }) => {
   const [revealedHandleId, setRevealedHandleId] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const sortedActiveDebts = useMemo(() => {
     let filtered = [...debts];
@@ -99,6 +110,7 @@ export const DebtList: React.FC<DebtListProps> = ({
         const progress = getProgress(d);
         const isSelected = selectedIds.has(d.id);
         const isHandleRevealed = revealedHandleId === d.id;
+        const isExpanded = expandedIds.has(d.id);
 
         return (
           <DebtRow
@@ -122,6 +134,8 @@ export const DebtList: React.FC<DebtListProps> = ({
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
+            isExpanded={isExpanded}
+            onToggleExpanded={() => toggleExpanded(d.id)}
           />
         );
       })}
@@ -151,6 +165,9 @@ interface DebtRowProps {
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragOver: (e: React.DragEvent, id: string) => void;
   onDrop: (e: React.DragEvent, id: string) => void;
+
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
 }
 
 const SWIPE_THRESHOLD_RIGHT = 120;
@@ -174,6 +191,8 @@ const DebtRow: React.FC<DebtRowProps> = ({
   onDragStart,
   onDragOver,
   onDrop,
+  isExpanded,
+  onToggleExpanded,
 }) => {
   const [swipe, setSwipe] = useState({
     startX: 0,
@@ -183,6 +202,9 @@ const DebtRow: React.FC<DebtRowProps> = ({
   });
 
   const swipeOffset = swipe.currentX - swipe.startX;
+
+  const entries = debt.entries ?? [];
+  const hasEntries = entries.length > 0;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isSelectionMode) return;
@@ -381,6 +403,53 @@ const DebtRow: React.FC<DebtRowProps> = ({
               </div>
             )}
           </div>
+
+          {/* Expand / collapse entries */}
+          {!isSelectionMode && hasEntries && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpanded();
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200"
+              >
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest">
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  Entries ({entries.length})
+                </div>
+                <div className="text-[10px] font-bold text-neutral-400">
+                  Tap to {isExpanded ? 'hide' : 'show'}
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="mt-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+                  {entries.map((en) => (
+                    <div
+                      key={en.id}
+                      className="p-3 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-neutral-900 dark:text-white truncate">
+                            {en.reason}
+                          </div>
+                          <div className="text-[10px] font-bold text-neutral-400 mt-0.5">
+                            {en.date}
+                          </div>
+                        </div>
+                        <div className="text-sm font-black text-orange-600 dark:text-orange-500">
+                          {formatter.format(en.amount)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

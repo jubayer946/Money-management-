@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Debt, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, Savings } from '../types';
+import { Transaction, Debt, DebtEntry, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, Savings } from '../types';
 import { db } from './firebaseConfig';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 
@@ -170,6 +170,28 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const deleteDebt = (id: string) => remove(ref(db, `debts/${id}`));
   const addDebtPayment = (dp: Omit<DebtPayment, 'id'>) => push(ref(db, 'debtPayments'), stripUndefined(dp));
 
+  const makeId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const addDebtEntry = (debtId: string, entry: Omit<DebtEntry, 'id'>) => {
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return;
+
+    const newEntry: DebtEntry = { id: makeId(), ...entry };
+    const updatedEntries = [newEntry, ...(debt.entries ?? [])];
+
+    const updatedAmount = (debt.amount ?? 0) + entry.amount;
+    const updatedInitial = (debt.initialAmount ?? debt.amount ?? 0) + entry.amount;
+
+    update(ref(db, `debts/${debtId}`), stripUndefined({
+      entries: updatedEntries,
+      amount: updatedAmount,
+      initialAmount: updatedInitial,
+    }));
+  };
+
   const addCategory = (name: string, type: TransactionType, color: string) => push(ref(db, 'categories'), stripUndefined({ name, type, color }));
   const updateCategory = (c: Category) => {
     const { id, ...data } = c;
@@ -214,6 +236,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       transactions, debts, debtPayments, categories, recurringTransactions, budgets, savings,
       addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactions,
       addDebt, updateDebt, deleteDebt, addDebtPayment,
+      addDebtEntry,
       addCategory, updateCategory, deleteCategory,
       addRecurringTransaction, updateRecurringTransaction, deleteRecurringTransaction,
       addBudget, updateBudget, deleteBudget,

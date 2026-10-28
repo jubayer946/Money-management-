@@ -30,11 +30,19 @@ export interface Savings {
   goal?: number;
 }
 
+export interface DebtEntry {
+  id: string;
+  amount: number;
+  reason: string;
+  date: string; // 'YYYY-MM-DD'
+}
+
 export interface Debt {
   id: string;
   name: string;
   amount: number;
   initialAmount: number;
+  entries?: DebtEntry[];
   interestRate?: number;
   minimumPayment?: number;
   dueDate?: string;
@@ -92,6 +100,7 @@ export interface FinanceContextType {
   updateDebt: (d: Debt) => void;
   deleteDebt: (id: string) => void;
   addDebtPayment: (dp: Omit<DebtPayment, 'id'>) => void;
+  addDebtEntry: (debtId: string, entry: Omit<DebtEntry, 'id'>) => void;
   addCategory: (name: string, type: TransactionType, color: string) => void;
   updateCategory: (c: Category) => void;
   deleteCategory: (id: string) => void;

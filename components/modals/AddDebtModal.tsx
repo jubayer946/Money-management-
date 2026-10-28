@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Modal } from '../ui/Modal';
 import { ChevronDown, ChevronRight, ListOrdered } from 'lucide-react';
@@ -10,7 +10,27 @@ interface AddDebtModalProps {
 }
 
 export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
-  const { debts, addDebt, categories } = useFinance();
+  const { debts, addDebt, addDebtEntry, categories } = useFinance();
+  const selectableDebts = debts.filter(d => (d.amount ?? 0) > 0);
+
+  const [mode, setMode] = useState<'existing' | 'new'>(selectableDebts.length > 0 ? 'existing' : 'new');
+  const [existingDebtId, setExistingDebtId] = useState('');
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(selectableDebts.length > 0 ? 'existing' : 'new');
+      setExistingDebtId(selectableDebts.length > 0 ? selectableDebts[0].id : '');
+    }
+  }, [isOpen, debts]);
+
+  useEffect(() => {
+    if (mode !== 'existing') return;
+    if (existingDebtId && !selectableDebts.some(d => d.id === existingDebtId)) {
+      setExistingDebtId('');
+    }
+  }, [mode, existingDebtId, selectableDebts]);
+
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [initialAmount, setInitialAmount] = useState('');
@@ -29,10 +49,31 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !amount) return;
 
     const currentAmt = parseFloat(amount);
-    if (isNaN(currentAmt)) return;
+    if (isNaN(currentAmt) || currentAmt <= 0) return;
+
+    // ✅ Existing person -> add sub task/entry (no new debt)
+    if (mode === 'existing') {
+      if (!existingDebtId) return;
+
+      addDebtEntry(existingDebtId, {
+        amount: currentAmt,
+        reason: reason || 'No reason',
+        date,
+      });
+
+      // reset a few fields
+      setAmount('');
+      setReason('');
+      setExistingDebtId('');
+      setMode('new');
+      onClose();
+      return;
+    }
+
+    // ✅ New person -> continue your existing addDebt logic below...
+    if (!name) return;
 
     let initAmt = parseFloat(initialAmount);
     if (isNaN(initAmt)) initAmt = currentAmt;
@@ -51,6 +92,12 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
         initialAmount: initAmt,
         date: date,
         priority: finalPriority,
+        entries: reason ? [{
+          id: (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          amount: currentAmt,
+          reason,
+          date
+        }] : undefined,
         interestRate: !isNaN(intRate) ? intRate : undefined,
         minimumPayment: !isNaN(minPay) ? minPay : undefined,
         dueDate: dueDate || undefined,
@@ -62,6 +109,9 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
     
     setName('');
     setAmount('');
+    setReason('');
+    setMode(selectableDebts.length > 0 ? 'existing' : 'new');
+    setExistingDebtId('');
     setInitialAmount('');
     setDate(new Date().toISOString().split('T')[0]);
     setInterestRate('');
@@ -77,21 +127,73 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Debt">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Debt Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Credit Card, Loan"
-            className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
-            required
-            autoFocus
-          />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('existing')}
+            className={`flex-1 p-3 rounded-xl text-sm font-bold border transition-all ${
+              mode === 'existing'
+                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200'
+            }`}
+          >
+            Existing Person
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode('new')}
+            className={`flex-1 p-3 rounded-xl text-sm font-bold border transition-all ${
+              mode === 'new'
+                ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200'
+            }`}
+          >
+            New Person
+          </button>
         </div>
 
+        {mode === 'existing' && (
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+              Select Person
+            </label>
+
+            <select
+              value={existingDebtId}
+              onChange={(e) => setExistingDebtId(e.target.value)}
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+              required
+            >
+              <option value="">Select...</option>
+              {selectableDebts.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {mode === 'new' && (
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+              Debt Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Credit Card, Loan"
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
+              required={mode === 'new'}
+              autoFocus
+            />
+          </div>
+        )}
+
         <div>
-          <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Current Balance</label>
+          <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+            {mode === 'existing' ? 'Additional Amount' : 'Current Balance'}
+          </label>
           <div className="relative">
             <input
               type="number"
@@ -107,6 +209,19 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
         </div>
 
         <div>
+          <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+            Reason
+          </label>
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g., groceries, rent, emergency..."
+            className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium placeholder:text-neutral-400 text-neutral-900 dark:text-white"
+          />
+        </div>
+
+        <div>
             <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">Date</label>
             <input
                 type="date"
@@ -118,7 +233,8 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
         </div>
 
         {/* Collapsible Details Section */}
-        <div className="border-t border-neutral-100 dark:border-neutral-800 pt-2">
+        {mode === 'new' && (
+          <div className="border-t border-neutral-100 dark:border-neutral-800 pt-2">
             <button
                 type="button"
                 onClick={() => setShowDetails(!showDetails)}
@@ -224,13 +340,14 @@ export const AddDebtModal = ({ isOpen, onClose }: AddDebtModalProps) => {
                      </div>
                 </div>
             )}
-        </div>
+          </div>
+        )}
 
         <button
           type="submit"
           className="w-full py-4 mt-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl font-medium shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 hover:shadow-xl hover:scale-[1.02] transition-all active:scale-[0.98]"
         >
-          Add Debt
+          {mode === 'existing' ? 'Add Entry' : 'Add Debt'}
         </button>
       </form>
     </Modal>
