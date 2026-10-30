@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Transaction, Debt, DebtEntry, Category, RecurringTransaction, DebtPayment, FinanceContextType, TransactionType, Budget, Savings } from '../types';
 import { db } from './firebaseConfig';
-import { ref, onValue, push, set, remove, update } from 'firebase/database';
+import { ref, onValue, push, set, remove, update, runTransaction } from 'firebase/database';
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
@@ -192,6 +192,74 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     }));
   };
 
+  const updateDebtEntry = (
+    debtId: string,
+    entryId: string,
+    updatesPartial: Partial<Omit<DebtEntry, 'id'>>
+  ) => {
+    return runTransaction(ref(db, `debts/${debtId}`), (current: any) => {
+      if (!current) return current;
+
+      const entries: any[] = current.entries ?? [];
+      const idx = entries.findIndex(e => e.id === entryId);
+      if (idx === -1) return current;
+
+      const oldEntry = entries[idx];
+      const oldAmount = Number(oldEntry.amount ?? 0);
+
+      const nextAmount =
+        updatesPartial.amount !== undefined
+          ? Number(updatesPartial.amount)
+          : oldAmount;
+
+      const delta = nextAmount - oldAmount;
+
+      const nextEntry = {
+        ...oldEntry,
+        ...updatesPartial,
+        amount: nextAmount,
+      };
+
+      const nextEntries = [...entries];
+      nextEntries[idx] = nextEntry;
+
+      const curAmount = Number(current.amount ?? 0);
+      const curInitial = Number(current.initialAmount ?? curAmount);
+
+      return {
+        ...current,
+        entries: nextEntries,
+        amount: curAmount + delta,
+        initialAmount: curInitial + delta,
+      };
+    });
+  };
+
+  const deleteDebtEntry = (debtId: string, entryId: string) => {
+    return runTransaction(ref(db, `debts/${debtId}`), (current: any) => {
+      if (!current) return current;
+
+      const entries: any[] = current.entries ?? [];
+      const idx = entries.findIndex(e => e.id === entryId);
+      if (idx === -1) return current;
+
+      const removed = entries[idx];
+      const removedAmount = Number(removed.amount ?? 0);
+
+      const nextEntries = entries.filter(e => e.id !== entryId);
+
+      const curAmount = Number(current.amount ?? 0);
+      const curInitial = Number(current.initialAmount ?? curAmount);
+
+      return {
+        ...current,
+        entries: nextEntries,
+        amount: curAmount - removedAmount,
+        initialAmount: curInitial - removedAmount,
+      };
+    });
+  };
+
   const addCategory = (name: string, type: TransactionType, color: string) => push(ref(db, 'categories'), stripUndefined({ name, type, color }));
   const updateCategory = (c: Category) => {
     const { id, ...data } = c;
@@ -237,6 +305,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactions,
       addDebt, updateDebt, deleteDebt, addDebtPayment,
       addDebtEntry,
+      updateDebtEntry,
+      deleteDebtEntry,
       addCategory, updateCategory, deleteCategory,
       addRecurringTransaction, updateRecurringTransaction, deleteRecurringTransaction,
       addBudget, updateBudget, deleteBudget,

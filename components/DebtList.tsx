@@ -7,8 +7,10 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import type { Debt } from '../types';
+import type { Debt, DebtEntry } from '../types';
 import type { SortOption } from './debtTypes';
+import { useFinance } from '../context/FinanceContext';
+import { Modal } from './ui/Modal';
 
 interface DebtListProps {
   debts: Debt[];                    // activeDebts from parent
@@ -47,6 +49,8 @@ export const DebtList: React.FC<DebtListProps> = ({
   onPayMinimum,
   onReorder,
 }) => {
+  const { updateDebtEntry, deleteDebtEntry } = useFinance();
+
   const [revealedHandleId, setRevealedHandleId] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -58,6 +62,41 @@ export const DebtList: React.FC<DebtListProps> = ({
       else next.add(id);
       return next;
     });
+  };
+
+  // editing modal state
+  const [editing, setEditing] = useState<null | {
+    debtId: string;
+    entry: DebtEntry;
+  }>(null);
+
+  const [editAmount, setEditAmount] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [editDate, setEditDate] = useState('');
+
+  const openEditEntry = (debtId: string, entry: DebtEntry) => {
+    setEditing({ debtId, entry });
+    setEditAmount(String(entry.amount));
+    setEditReason(entry.reason);
+    setEditDate(entry.date);
+  };
+
+  const closeEditEntry = () => setEditing(null);
+
+  const saveEditEntry = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+
+    const nextAmt = Number(editAmount);
+    if (Number.isNaN(nextAmt) || nextAmt <= 0) return;
+
+    updateDebtEntry(editing.debtId, editing.entry.id, {
+      amount: nextAmt,
+      reason: editReason,
+      date: editDate,
+    });
+
+    closeEditEntry();
   };
 
   const sortedActiveDebts = useMemo(() => {
@@ -105,41 +144,104 @@ export const DebtList: React.FC<DebtListProps> = ({
   };
 
   return (
-    <div className="space-y-4 mb-10">
-      {sortedActiveDebts.map(d => {
-        const progress = getProgress(d);
-        const isSelected = selectedIds.has(d.id);
-        const isHandleRevealed = revealedHandleId === d.id;
-        const isExpanded = expandedIds.has(d.id);
+    <>
+      <div className="space-y-4 mb-10">
+        {sortedActiveDebts.map(d => {
+          const progress = getProgress(d);
+          const isSelected = selectedIds.has(d.id);
+          const isHandleRevealed = revealedHandleId === d.id;
+          const isExpanded = expandedIds.has(d.id);
 
-        return (
-          <DebtRow
-            key={d.id}
-            debt={d}
-            progress={progress}
-            formatter={formatter}
-            isSelectionMode={isSelectionMode}
-            isSelected={isSelected}
-            canDrag={canDragGlobally}
-            isHandleRevealed={isHandleRevealed}
-            onToggleHandle={() =>
-              setRevealedHandleId(isHandleRevealed ? null : d.id)
-            }
-            prefersReducedMotion={prefersReducedMotion}
-            onToggleSelect={onToggleItemSelection}
-            onEdit={onEditDebt}
-            onDelete={onDeleteDebt}
-            onSettle={onSettleDebt}
-            onPayMinimum={onPayMinimum}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            isExpanded={isExpanded}
-            onToggleExpanded={() => toggleExpanded(d.id)}
-          />
-        );
-      })}
-    </div>
+          return (
+            <DebtRow
+              key={d.id}
+              debt={d}
+              progress={progress}
+              formatter={formatter}
+              isSelectionMode={isSelectionMode}
+              isSelected={isSelected}
+              canDrag={canDragGlobally}
+              isHandleRevealed={isHandleRevealed}
+              onToggleHandle={() =>
+                setRevealedHandleId(isHandleRevealed ? null : d.id)
+              }
+              prefersReducedMotion={prefersReducedMotion}
+              onToggleSelect={onToggleItemSelection}
+              onEdit={onEditDebt}
+              onDelete={onDeleteDebt}
+              onSettle={onSettleDebt}
+              onPayMinimum={onPayMinimum}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              isExpanded={isExpanded}
+              onToggleExpanded={() => toggleExpanded(d.id)}
+              onRequestEditEntry={(entry) => openEditEntry(d.id, entry)}
+              onRequestDeleteEntry={(entryId) => {
+                if (!window.confirm('Delete this entry?')) return;
+                deleteDebtEntry(d.id, entryId);
+              }}
+            />
+          );
+        })}
+      </div>
+
+      <Modal
+        isOpen={!!editing}
+        onClose={closeEditEntry}
+        title="Edit Entry"
+      >
+        <form onSubmit={saveEditEntry} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+              Amount
+            </label>
+            <input
+              type="number"
+              value={editAmount}
+              onChange={(e) => setEditAmount(e.target.value)}
+              step="0.01"
+              min="0.01"
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+              Reason
+            </label>
+            <input
+              type="text"
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-2">
+              Date
+            </label>
+            <input
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+              className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 border-2 border-transparent focus:border-neutral-900 dark:focus:border-neutral-200 focus:bg-white dark:focus:bg-neutral-900 rounded-xl outline-none transition-all font-medium text-neutral-900 dark:text-white"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl font-medium shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all"
+          >
+            Save Changes
+          </button>
+        </form>
+      </Modal>
+    </>
   );
 };
 
@@ -168,6 +270,8 @@ interface DebtRowProps {
 
   isExpanded: boolean;
   onToggleExpanded: () => void;
+  onRequestEditEntry: (entry: DebtEntry) => void;
+  onRequestDeleteEntry: (entryId: string) => void;
 }
 
 const SWIPE_THRESHOLD_RIGHT = 120;
@@ -193,6 +297,8 @@ const DebtRow: React.FC<DebtRowProps> = ({
   onDrop,
   isExpanded,
   onToggleExpanded,
+  onRequestEditEntry,
+  onRequestDeleteEntry,
 }) => {
   const [swipe, setSwipe] = useState({
     startX: 0,
@@ -205,6 +311,7 @@ const DebtRow: React.FC<DebtRowProps> = ({
 
   const entries = debt.entries ?? [];
   const hasEntries = entries.length > 0;
+  const lastEntry = entries[0];
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isSelectionMode) return;
@@ -373,6 +480,16 @@ const DebtRow: React.FC<DebtRowProps> = ({
               <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest mt-0.5">
                 Was {formatter.format(debt.initialAmount ?? debt.amount)}
               </div>
+              {!isSelectionMode && lastEntry?.reason && (
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 truncate max-w-[220px]">
+                  Last: <span className="font-semibold">{lastEntry.reason}</span>
+                  {typeof lastEntry.amount === 'number' && (
+                    <span className="text-neutral-400 dark:text-neutral-500">
+                      {' '}· {formatter.format(lastEntry.amount)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="text-right">
               <div className="font-black text-xl tracking-tight text-orange-600 dark:text-orange-500">
@@ -440,8 +557,34 @@ const DebtRow: React.FC<DebtRowProps> = ({
                             {en.date}
                           </div>
                         </div>
-                        <div className="text-sm font-black text-orange-600 dark:text-orange-500">
-                          {formatter.format(en.amount)}
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-black text-orange-600 dark:text-orange-500">
+                            {formatter.format(en.amount)}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRequestEditEntry(en);
+                            }}
+                            className="w-8 h-8 rounded-full bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-indigo-600 transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRequestDeleteEntry(en.id);
+                            }}
+                            className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
                     </div>

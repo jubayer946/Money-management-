@@ -101,6 +101,12 @@ export interface FinanceContextType {
   deleteDebt: (id: string) => void;
   addDebtPayment: (dp: Omit<DebtPayment, 'id'>) => void;
   addDebtEntry: (debtId: string, entry: Omit<DebtEntry, 'id'>) => void;
+  updateDebtEntry: (
+    debtId: string,
+    entryId: string,
+    updates: Partial<Omit<DebtEntry, 'id'>>
+  ) => void;
+  deleteDebtEntry: (debtId: string, entryId: string) => void;
   addCategory: (name: string, type: TransactionType, color: string) => void;
   updateCategory: (c: Category) => void;
   deleteCategory: (id: string) => void;
